@@ -156,7 +156,7 @@ variable "azure_rg_name" {
 variable "machine_type" {
   description = "Select VM size based on performance needed."
   type        = string
-  default     = "Standard_D3_v2"
+  default     = "Standard_D4s_v3"
 }
 
 #-----------------------------------------------------------
