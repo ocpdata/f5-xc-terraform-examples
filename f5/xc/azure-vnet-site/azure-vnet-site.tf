@@ -14,7 +14,7 @@ module "azure_vnet_site" {
   nodes_disk_size                    = ("" != var.nodes_disk_size) ? tonumber(var.nodes_disk_size) : 80
   ssh_key                            = ("" != var.ssh_key) ? var.ssh_key : null
   azure_rg_location                  = ("" != var.azure_rg_location) ? var.azure_rg_location : null
-  machine_type                       = ("" != var.machine_type) ? var.machine_type : "Standard_D3_v2"
+  machine_type                       = ("" != var.machine_type) ? var.machine_type : "Standard_D4s_v3"
   az_cloud_credentials_name          = var.az_cloud_credentials_name
   az_cloud_credentials_namespace     = ("" != var.az_cloud_credentials_namespace) ? var.az_cloud_credentials_namespace : null
   az_cloud_credentials_tenant        = ("" != var.az_cloud_credentials_tenant) ? var.az_cloud_credentials_tenant : null
