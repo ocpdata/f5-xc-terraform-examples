@@ -177,7 +177,7 @@ jobs:
       TF_VAR_outside_subnets: ${{ needs.apply_variables.outputs.TF_VAR_aws_outside_subnets }}
       TF_VAR_workload_subnets: ${{ needs.apply_variables.outputs.TF_VAR_aws_workload_subnets }}
       TF_VAR_vpc_cidr: ${{ needs.apply_variables.outputs.TF_VAR_aws_vpc_cidr }}
-      TF_VAR_create_udp_security_group_rules: "false"
+      #TF_VAR_create_udp_security_group_rules: "false"
       TF_CLOUD_WORKSPACE_AWS_NETWORKING: ${{ needs.apply_variables.outputs.TF_CLOUD_WORKSPACE_AWS_NETWORKING }}
     secrets:
       TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
