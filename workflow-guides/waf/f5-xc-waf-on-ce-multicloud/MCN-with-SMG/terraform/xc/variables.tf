@@ -71,7 +71,7 @@ variable "azure_service_principal_password" {
 
 variable "azure_xc_machine_type" {
   type        = string
-  default     = "Standard_D3_v2"
+  default     = "Standard_D4s_v3"
 }
 
 variable "GOOGLE_CREDENTIALS" {
