@@ -67,7 +67,8 @@ resource "azurerm_linux_virtual_machine" "test-vm" {
   location              = var.azure_rg_location
   resource_group_name   = var.azure_rg_name
   network_interface_ids = [azurerm_network_interface.nic.id]
-  size                  = "Standard_DS1_v2"
+  size                  = "Standard_D2s_v3"
+  #size                  = "Standard_DS1_v2"
   admin_username        = "ubuntu"
 
   source_image_reference {
