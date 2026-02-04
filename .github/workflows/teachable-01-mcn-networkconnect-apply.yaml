@@ -497,7 +497,7 @@ jobs:
           mkdir -p $PWD/.ssh && chmod 700 $PWD/.ssh
           echo ${{ needs.global_network.outputs.ssh_private_key }} | base64 --decode > $PWD/.ssh/test_vm.pem 
           chmod 600 $PWD/.ssh/test_vm.pem
-          echo "Trying to connect to $SERVER_USER@$SERVER_IP"
+          echo "Trying to connect to ubuntu@${{ needs.global_network.outputs.ssh_host }} on port ${{ needs.global_network.outputs.ssh_port }}"
           ssh -o ConnectTimeout=5 ubuntu@${{ needs.global_network.outputs.ssh_host }} -p ${{ needs.global_network.outputs.ssh_port }} -i $PWD/.ssh/test_vm.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "echo 'SSH connection successful.' && exit"
           # SSH connection successful
           echo ""
@@ -648,7 +648,7 @@ jobs:
           mkdir -p $PWD/.ssh && chmod 700 $PWD/.ssh
           echo ${{ needs.global_network.outputs.ssh_private_key }} | base64 --decode > $PWD/.ssh/test_vm.pem 
           chmod 600 $PWD/.ssh/test_vm.pem
-          echo "Trying to connect to $SERVER_USER@$SERVER_IP"
+          echo "Trying to connect to ubuntu@${{ needs.global_network.outputs.ssh_host }} on port ${{ needs.global_network.outputs.ssh_port }}"
           ssh -o ConnectTimeout=5 ubuntu@${{ needs.global_network.outputs.ssh_host }} -p ${{ needs.global_network.outputs.ssh_port }} -i $PWD/.ssh/test_vm.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "echo 'SSH connection successful.' && exit"
           # SSH connection successful
           echo ""
