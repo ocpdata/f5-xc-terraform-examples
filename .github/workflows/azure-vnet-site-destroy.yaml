@@ -49,7 +49,7 @@ on:
 jobs:
   azure_vnet_site:
     name: "Azure VNET Site Destroy"
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: "./f5/xc/azure-vnet-site"

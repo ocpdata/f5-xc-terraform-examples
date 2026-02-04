@@ -31,7 +31,7 @@ on:
 jobs:
   aws_networking:
     name: "AWS Networking Destroy"
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: "./aws/networking"
