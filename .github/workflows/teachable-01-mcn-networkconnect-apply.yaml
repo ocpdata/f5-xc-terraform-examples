@@ -46,7 +46,8 @@ on:
 jobs:
   apply_variables:
     name: "Apply Environment Variables"
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
+    #runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: "./teachable/01-mcn-networkconnect"
@@ -312,7 +313,8 @@ jobs:
         aws_vpc_site,
         azure_vnet_site,
       ]
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
+    #runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: "./teachable/01-mcn-networkconnect/terraform/global-network"
@@ -484,7 +486,8 @@ jobs:
     name: "Test Connection"
     if: (inputs.lesson == 'global-network' || inputs.lesson == 'enhanced-firewall')
     needs: [azure_global_network, aws_global_network, global_network]
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
+    #runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: "./teachable/01-mcn-networkconnect/terraform/global-network"
@@ -517,7 +520,8 @@ jobs:
     name: "Configure XC Enhanced Firewall Rules"
     if: (inputs.lesson == 'enhanced-firewall')
     needs: [apply_variables, aws_networking, test_connection]
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
+    #runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: "./teachable/01-mcn-networkconnect/terraform/enhanced-firewall"
@@ -635,7 +639,8 @@ jobs:
         global_network,
         aws_enhanced_firewall,
       ]
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
+    #runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: "./teachable/01-mcn-networkconnect/terraform/enhanced-firewall"
