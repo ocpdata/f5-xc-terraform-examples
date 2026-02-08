@@ -296,6 +296,7 @@ jobs:
       TF_VAR_site_type: "ingress_egress_gw"
       TF_VAR_azure_rg_location: ${{ needs.apply_variables.outputs.TF_VAR_azure_location }}
       TF_VAR_azure_rg_name: ${{ needs.apply_variables.outputs.TF_VAR_azure_vnet_site_name }}
+      TF_VAR_machine_type: "Standard_D4s_v3"
       TF_VAR_vnet_rg_name: ${{ needs.azure_networking.outputs.resource_group_name }}
       TF_VAR_master_nodes_az_names: ${{ needs.azure_networking.outputs.az_names }}
       TF_VAR_vnet_name: ${{ needs.azure_networking.outputs.vnet_name }}
