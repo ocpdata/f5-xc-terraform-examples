@@ -48,18 +48,31 @@ resource "aws_eks_node_group" "private-node-group-1-tf" {
   ]
 }
 
+data "aws_eks_addon_version" "cluster_addons" {
+  for_each           = { for addon in var.eks_addons : addon.name => addon if addon.name != "aws-ebs-csi-driver" }
+  addon_name         = each.key
+  kubernetes_version = aws_eks_cluster.eks-tf.version
+  most_recent        = true
+}
+
+data "aws_eks_addon_version" "ebs_csi" {
+  addon_name         = "aws-ebs-csi-driver"
+  kubernetes_version = aws_eks_cluster.eks-tf.version
+  most_recent        = true
+}
+
 resource "aws_eks_addon" "cluster-addons" {
   for_each                    = { for addon in var.eks_addons : addon.name => addon if addon.name != "aws-ebs-csi-driver" }
   cluster_name                = aws_eks_cluster.eks-tf.id
   addon_name                  = each.value.name
-  addon_version               = each.value.version
+  addon_version               = data.aws_eks_addon_version.cluster_addons[each.key].version
   resolve_conflicts_on_create = "OVERWRITE"
 }
 
 resource "aws_eks_addon" "ebs_csi_driver_addon" {
   cluster_name                = aws_eks_cluster.eks-tf.id
   addon_name                  = "aws-ebs-csi-driver"
-  addon_version               = lookup({ for addon in var.eks_addons : addon.name => addon.version }, "aws-ebs-csi-driver", null)
+  addon_version               = data.aws_eks_addon_version.ebs_csi.version
   service_account_role_arn    = aws_iam_role.ebs_csi_driver.arn
   resolve_conflicts_on_create = "OVERWRITE"
 }
