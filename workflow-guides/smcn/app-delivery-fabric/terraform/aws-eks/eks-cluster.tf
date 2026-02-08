@@ -49,8 +49,17 @@ resource "aws_eks_node_group" "private-node-group-1-tf" {
 }
 
 resource "aws_eks_addon" "cluster-addons" {
-  for_each                    = { for addon in var.eks_addons : addon.name => addon }
+  for_each                    = { for addon in var.eks_addons : addon.name => addon if addon.name != "aws-ebs-csi-driver" }
   cluster_name                = aws_eks_cluster.eks-tf.id
   addon_name                  = each.value.name
+  addon_version               = each.value.version
+  resolve_conflicts_on_create = "OVERWRITE"
+}
+
+resource "aws_eks_addon" "ebs_csi_driver_addon" {
+  cluster_name                = aws_eks_cluster.eks-tf.id
+  addon_name                  = "aws-ebs-csi-driver"
+  addon_version               = lookup({ for addon in var.eks_addons : addon.name => addon.version }, "aws-ebs-csi-driver", null)
+  service_account_role_arn    = aws_iam_role.ebs_csi_driver.arn
   resolve_conflicts_on_create = "OVERWRITE"
 }

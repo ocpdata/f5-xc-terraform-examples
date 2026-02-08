@@ -13,7 +13,7 @@ resource "azurerm_kubernetes_cluster" "aks-cluster" {
   default_node_pool {
     name           = "default"
     node_count     = local.aks_node_count
-    vm_size        = "Standard_D2_v2"
+    vm_size        = "Standard_D4s_v3"
     vnet_subnet_id = local.node_subnet_id
     // pod_subnet_id = data.azurerm_subnet.pods.id
     // temporary_name_for_rotation = local.buildSuffix
