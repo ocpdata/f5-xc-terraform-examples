@@ -35,7 +35,7 @@ on:
         description: "Prefix"
         required: false
         type: string
-      AWS_CLOUD_CREDENTIALS_TF_VAR_NAME:
+      AWS_CLOUD_CREDENTIALS_TF_VAR_name:
         description: "AWS Cloud Credentials Workflow Name"
         required: false
         type: string
@@ -83,7 +83,7 @@ jobs:
       TF_CLOUD_WORKSPACE_XC_CREDENTIALS: "xc-credentials"
       TF_CLOUD_WORKSPACE_AZURE_CREDENTIALS: "azure-cloud-credentials"
       TF_CLOUD_WORKSPACE_AWS_CREDENTIALS: "aws-cloud-credentials"
-      AWS_CLOUD_CREDENTIALS_TF_VAR_NAME: "aws-cloud-credentials"
+      AWS_CLOUD_CREDENTIALS_TF_VAR_name: "aws-cloud-credentials"
       AZURE_CLOUD_CREDENTIALS_TF_VAR_name: "azure-cloud-credentials"
     outputs:
       TF_VAR_name: ${{ steps.update_output.outputs.TF_VAR_name }}
@@ -92,7 +92,7 @@ jobs:
       TF_CLOUD_WORKSPACE_XC_CREDENTIALS: ${{ steps.update_output.outputs.TF_CLOUD_WORKSPACE_XC_CREDENTIALS }}
       TF_CLOUD_WORKSPACE_AZURE_CREDENTIALS: ${{ steps.update_output.outputs.TF_CLOUD_WORKSPACE_AZURE_CREDENTIALS }}
       TF_CLOUD_WORKSPACE_AWS_CREDENTIALS: ${{ steps.update_output.outputs.TF_CLOUD_WORKSPACE_AWS_CREDENTIALS }}
-      AWS_CLOUD_CREDENTIALS_TF_VAR_NAME: ${{ steps.update_output.outputs.AWS_CLOUD_CREDENTIALS_TF_VAR_NAME }}
+      AWS_CLOUD_CREDENTIALS_TF_VAR_name: ${{ steps.update_output.outputs.AWS_CLOUD_CREDENTIALS_TF_VAR_name }}
       AZURE_CLOUD_CREDENTIALS_TF_VAR_name: ${{ steps.update_output.outputs.AZURE_CLOUD_CREDENTIALS_TF_VAR_name }}
     steps:
       - name: Checkout
@@ -206,7 +206,7 @@ jobs:
     if: (inputs.lesson == 'aws-credentials')
     needs: [xc_credentials, terraform_cloud]
     with:
-      TF_VAR_name: ${{ needs.terraform_cloud.outputs.AWS_CLOUD_CREDENTIALS_TF_VAR_NAME }}
+      TF_VAR_name: ${{ needs.terraform_cloud.outputs.AWS_CLOUD_CREDENTIALS_TF_VAR_name }}
       TF_VAR_prefix: ${{ needs.terraform_cloud.outputs.TF_VAR_prefix }}
     secrets:
       TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
