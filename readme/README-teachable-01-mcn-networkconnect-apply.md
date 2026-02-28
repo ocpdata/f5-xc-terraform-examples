@@ -174,6 +174,12 @@ SSH_PORT="<valor de ssh_port>" # ej: 9322
 AWS_VM_IP="10.10.21.100"       # IP privada de la VM en AWS
 ```
 
+Debe ejecutarse el siguiente comando para proteger la llave privada local
+
+```bash
+chmod 600 "$SSH_KEY"
+```
+
 ### 1. Verificar que la llave es válida
 
 ```bash
