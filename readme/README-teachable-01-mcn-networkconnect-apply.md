@@ -94,7 +94,7 @@ El workflow orquesta, según la lección seleccionada:
 
 ```mermaid
 flowchart LR
-    OP[Operator / Dev Laptop]
+  RUNNER[GitHub Actions Runner]
     NET[Public Internet]
 
     subgraph AZURE_SITE[Azure Site]
@@ -128,13 +128,23 @@ flowchart LR
       EFW
     end
 
-    OP --> NET --> AZ_CE
+    RUNNER --> NET --> AZ_CE
     AZ_CE <-->|Site Link| GVN
     AWS_CE <-->|Site Link| GVN
 
     AZ_VM -->|Ping / HTTP over Global Network| AWS_VM
     EFW -.optional policy attachment.-> AWS_CE
 ```
+
+### Rol de las subredes en la topología
+
+| Subred                  | Propósito principal                                               | Uso en este laboratorio                                                          |
+| ----------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `outside subnet`        | Lado WAN/upstream del sitio XC (salida/entrada hacia red externa) | Permite que el CE establezca conectividad con XC y transporte enlaces del sitio. |
+| `inside subnet`         | Lado LAN/downstream del sitio XC                                  | Conecta el CE con la red interna del entorno (rutas privadas).                   |
+| `workload subnet` (AWS) | Segmento de cargas de aplicación                                  | Aloja la VM de prueba `10.10.21.100` usada para ping/HTTP desde Azure.           |
+
+En resumen: **outside = borde externo**, **inside = borde interno**, **workload = apps**.
 
 ## Mejoras de robustez SSH incorporadas
 
@@ -146,6 +156,100 @@ En los jobs de prueba (`test_connection` y `test_enhanched_firewall`) se agregar
 4. Diagnóstico detallado (`-vvv`) solo en el último intento.
 
 Esto ayuda especialmente cuando el endpoint SSH todavía no está listo al primer intento y evita fallos tempranos con `exit code 255`.
+
+## Pruebas manuales desde laptop
+
+Una vez que el workflow haya terminado correctamente en lección `global-network`, puedes replicar las mismas pruebas que ejecuta el job `test_connection` desde tu laptop.
+
+### Pre-requisitos
+
+- Haber configurado el secreto `SSH_PRIVATE_KEY` en GitHub (la misma llave se usa para provisionar las VMs).
+- Tener los valores de `ssh_host` y `ssh_port` del job `global_network` (se imprimen en el log del step **Print output vars**).
+- Tu llave privada local (la que corresponde a `SSH_PRIVATE_KEY`):
+
+```bash
+SSH_KEY=~/.ssh/mcn_lab        # ruta a tu llave privada
+SSH_HOST="<valor de ssh_host>" # ej: ves-io-xxxx.ac.vh.ves.io
+SSH_PORT="<valor de ssh_port>" # ej: 9322
+AWS_VM_IP="10.10.21.100"       # IP privada de la VM en AWS
+```
+
+### 1. Verificar que la llave es válida
+
+```bash
+ssh-keygen -y -f "$SSH_KEY"
+```
+
+Debe devolver la clave pública. Si falla, la llave no coincide con la usada en el deploy.
+
+### 2. Test de conectividad SSH (jump host Azure → runner)
+
+```bash
+ssh -i "$SSH_KEY" \
+    -p "$SSH_PORT" \
+    -o ConnectTimeout=10 \
+    -o StrictHostKeyChecking=no \
+    ubuntu@"$SSH_HOST" \
+    "echo 'SSH connection successful.'"
+```
+
+### 3. Test de Ping (Azure VM → AWS VM via Global Network)
+
+```bash
+ssh -i "$SSH_KEY" \
+    -p "$SSH_PORT" \
+    -o StrictHostKeyChecking=no \
+    ubuntu@"$SSH_HOST" \
+    "ping -c 4 -W 10 -v $AWS_VM_IP"
+```
+
+> **Nota:** 100% packet loss en el ping no es bloqueante — ICMP puede estar restringido por security group. El test real es HTTP.
+
+### 4. Test HTTP (Azure VM → AWS VM via Global Network)
+
+```bash
+ssh -i "$SSH_KEY" \
+    -p "$SSH_PORT" \
+    -o StrictHostKeyChecking=no \
+    ubuntu@"$SSH_HOST" \
+    "curl -s -D - http://$AWS_VM_IP/test"
+```
+
+Una respuesta HTTP `200 OK` confirma que la conectividad MCN Azure↔AWS está operativa.
+
+### 5. Script completo
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+SSH_KEY=~/.ssh/mcn_lab
+SSH_HOST="<ssh_host del output>"
+SSH_PORT="<ssh_port del output>"
+AWS_VM_IP="10.10.21.100"
+
+SSH_OPTS=(-i "$SSH_KEY" -p "$SSH_PORT" -o ConnectTimeout=10 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
+
+echo "=== SSH Test ==="
+ssh "${SSH_OPTS[@]}" ubuntu@"$SSH_HOST" "echo 'SSH OK'"
+
+echo "=== Ping Test ==="
+ssh "${SSH_OPTS[@]}" ubuntu@"$SSH_HOST" "ping -c 4 -W 10 $AWS_VM_IP" || echo "Ping failed (may be blocked by SG)"
+
+echo "=== HTTP Test ==="
+ssh "${SSH_OPTS[@]}" ubuntu@"$SSH_HOST" "curl -s -D - http://$AWS_VM_IP/test"
+```
+
+### Obtener ssh_host y ssh_port
+
+Los valores se muestran en el log del step **Print output vars** del job `global_network`:
+
+```
+ssh_host: ves-io-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx.ac.vh.ves.io
+ssh_port: XXXXX
+```
+
+También disponibles como outputs del job en la sección **Summary** del workflow run.
 
 ## Ejecución manual
 
