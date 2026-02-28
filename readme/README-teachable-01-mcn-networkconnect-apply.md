@@ -375,17 +375,17 @@ El destroy respeta el orden inverso al apply para evitar dependencias huérfanas
 
 ```
 apply_variables
-    └── enhanced_firewall          (1° — elimina política de firewall XC)
-            └── workloads          (2° — elimina GVN, conexiones inter-cloud y VMs)
-                    ├── aws_vpc_site    (3° — elimina CE en AWS)
-                    │       ├── aws_credentials   (4° — elimina credenciales AWS en XC)
-                    │       └── aws_networking    (4° — elimina VPC, subredes y SGs en AWS)
-                    └── azure_vnet_site  (3° — elimina CE en Azure)
-                            ├── azure_credentials  (4° — elimina credenciales Azure en XC)
-                            └── azure_networking   (4° — elimina VNET y subredes en Azure)
+    ├── aws_vpc_site      (1° — elimina CE en AWS; quita la referencia al enhanced firewall y al GVN)
+    │       ├── aws_credentials   (2° — elimina credenciales AWS en XC)
+    │       └── aws_networking    (2° — elimina VPC, subredes y SGs en AWS)
+    ├── azure_vnet_site   (1° — elimina CE en Azure; quita la referencia al GVN)
+    │       ├── azure_credentials  (2° — elimina credenciales Azure en XC)
+    │       └── azure_networking   (2° — elimina VNET y subredes en Azure)
+    └── enhanced_firewall (2° — elimina política de firewall XC, ya sin referencias de sitios)
+            └── workloads (3° — elimina GVN y VMs, ya sin referencias de sitios ni policys)
 ```
 
-> **Importante:** El destroy del job `workloads` (global-network) usa valores ficticios en variables de red (`TF_VAR_name: "delete"`, CIDRs en `192.168.0.0/16`) para que Terraform pueda inicializar el módulo sin depender de outputs de otros jobs ya destruidos. Esto es intencional.
+> **Por qué los sites se destruyen primero:** la política de Enhanced Firewall está vinculada al AWS VPC Site (referencia en XC). Si se intenta borrar la policy antes que el site, la API de XC devuelve error `409 CONFLICT: still being referred by 1 objects`. Del mismo modo, el GVN tiene referencias desde ambos sites; si los sites ya no existen, el GVN puede eliminarse limpiamente.
 
 ### Jobs del workflow de destroy
 
@@ -409,8 +409,13 @@ apply_variables
 
 ### Troubleshooting del destroy
 
-- **Falla en `workloads`:** Verificar que los secretos XC (`XC_API_P12_FILE`, `XC_P12_PASSWORD`, `XC_API_URL`) y los de AWS/Azure sean válidos. Este job require todos porque destruye recursos en XC, AWS y Azure.
-- **Falla en `enhanced_firewall` con "workspace not found":** Normal si nunca se ejecutó la lección `enhanced-firewall`. El workspace no existe y Terraform init fallará. Se puede ignorar o el job fallará sin impacto en el resto del stack.
+- **Error 409 al destruir `enhanced_firewall` (`still being referred by 1 objects - aws_vpc_site`):**
+  Ocurre si el AWS VPC Site todavía tiene la política adjunta. El site debe destruirse **antes** que la policy. El orden de dependencias del workflow garantiza esto: `aws_vpc_site` se ejecuta en paralelo con `azure_vnet_site` antes de `enhanced_firewall`. Si el error aparece, verificar que el job `aws_vpc_site` haya completado exitosamente antes de reintentar.
+
+- **Falla en `workloads`:** Verificar que los secretos XC (`XC_API_P12_FILE`, `XC_P12_PASSWORD`, `XC_API_URL`) y los de AWS/Azure sean válidos. Este job requiere todos porque destruye recursos en XC, AWS y Azure.
+
+- **Falla en `enhanced_firewall` con "workspace not found":** Normal si nunca se ejecutó la lección `enhanced-firewall`. El workspace no existe y Terraform init fallará. Se puede ignorar; no impacta el resto del destroy.
+
 - **Recursos de red que no se destruyen (VPC/VNET):** Suele ocurrir si quedan recursos dependientes (ENIs, instancias) no creados por Terraform. Verificar en la consola AWS/Azure antes de reintentar.
 
 ---
