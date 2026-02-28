@@ -494,24 +494,56 @@ jobs:
 
       - name: Test Connection
         run: |
-          mkdir -p $PWD/.ssh && chmod 700 $PWD/.ssh
-          echo ${{ needs.global_network.outputs.ssh_private_key }} | base64 --decode > $PWD/.ssh/test_vm.pem 
-          chmod 600 $PWD/.ssh/test_vm.pem
-          echo "Trying to connect to ubuntu@${{ needs.global_network.outputs.ssh_host }} on port ${{ needs.global_network.outputs.ssh_port }}"
-          ssh -o ConnectTimeout=5 ubuntu@${{ needs.global_network.outputs.ssh_host }} -p ${{ needs.global_network.outputs.ssh_port }} -i $PWD/.ssh/test_vm.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "echo 'SSH connection successful.' && exit"
+          mkdir -p "$PWD/.ssh" && chmod 700 "$PWD/.ssh"
+          SSH_KEY_PATH="$PWD/.ssh/test_vm.pem"
+          SSH_HOST="${{ needs.global_network.outputs.ssh_host }}"
+          SSH_PORT="${{ needs.global_network.outputs.ssh_port }}"
+
+          printf '%s' '${{ needs.global_network.outputs.ssh_private_key }}' | base64 --decode > "$SSH_KEY_PATH"
+          chmod 600 "$SSH_KEY_PATH"
+
+          if ! ssh-keygen -y -f "$SSH_KEY_PATH" > /dev/null 2>&1; then
+            echo "Invalid SSH private key generated from workflow output."
+            exit 1
+          fi
+
+          echo "Trying to connect to ubuntu@$SSH_HOST on port $SSH_PORT"
+          SSH_OPTS=(-o ConnectTimeout=10 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p "$SSH_PORT" -i "$SSH_KEY_PATH")
+
+          connected="false"
+          for attempt in {1..12}; do
+            SSH_VERBOSE_OPTS=()
+            if [[ "$attempt" -eq 12 ]]; then
+              SSH_VERBOSE_OPTS=(-vvv)
+              echo "Final SSH attempt with verbose diagnostics enabled..."
+            fi
+
+            if ssh "${SSH_VERBOSE_OPTS[@]}" "${SSH_OPTS[@]}" "ubuntu@$SSH_HOST" "echo 'SSH connection successful.' && exit"; then
+              connected="true"
+              break
+            fi
+            echo "SSH not ready yet (attempt $attempt/12), retrying in 10s..."
+            sleep 10
+          done
+
+          if [[ "$connected" != "true" ]]; then
+            echo "Unable to establish SSH connection after retries."
+            exit 1
+          fi
+
           # SSH connection successful
           echo ""
           echo "##########  Test Ping  ##########"
           echo ""
           echo "ping -c 4 -W 10 -v ${{ needs.global_network.outputs.aws_vm_private_ip }}"
           echo ""
-          ssh -o ConnectTimeout=5 ubuntu@${{ needs.global_network.outputs.ssh_host }} -p ${{ needs.global_network.outputs.ssh_port }} -i $PWD/.ssh/test_vm.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "ping -c 4 -W 10 -v ${{ needs.global_network.outputs.aws_vm_private_ip }} && exit"
+          ssh "${SSH_OPTS[@]}" "ubuntu@$SSH_HOST" "ping -c 4 -W 10 -v ${{ needs.global_network.outputs.aws_vm_private_ip }} && exit"
           echo ""
           echo "##########  Test HTTP  ##########"
           echo ""
           echo "curl -s -D - http://${{ needs.global_network.outputs.aws_vm_private_ip }}/test"
           echo ""
-          ssh -o ConnectTimeout=5 ubuntu@${{ needs.global_network.outputs.ssh_host }} -p ${{ needs.global_network.outputs.ssh_port }} -i $PWD/.ssh/test_vm.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "curl -s -D - http://${{ needs.global_network.outputs.aws_vm_private_ip }}/test && exit"
+          ssh "${SSH_OPTS[@]}" "ubuntu@$SSH_HOST" "curl -s -D - http://${{ needs.global_network.outputs.aws_vm_private_ip }}/test && exit"
 
   xc_enhanced_firewall_rules:
     name: "Configure XC Enhanced Firewall Rules"
@@ -645,21 +677,53 @@ jobs:
 
       - name: Test Connection
         run: |
-          mkdir -p $PWD/.ssh && chmod 700 $PWD/.ssh
-          echo ${{ needs.global_network.outputs.ssh_private_key }} | base64 --decode > $PWD/.ssh/test_vm.pem 
-          chmod 600 $PWD/.ssh/test_vm.pem
-          echo "Trying to connect to ubuntu@${{ needs.global_network.outputs.ssh_host }} on port ${{ needs.global_network.outputs.ssh_port }}"
-          ssh -o ConnectTimeout=5 ubuntu@${{ needs.global_network.outputs.ssh_host }} -p ${{ needs.global_network.outputs.ssh_port }} -i $PWD/.ssh/test_vm.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "echo 'SSH connection successful.' && exit"
+          mkdir -p "$PWD/.ssh" && chmod 700 "$PWD/.ssh"
+          SSH_KEY_PATH="$PWD/.ssh/test_vm.pem"
+          SSH_HOST="${{ needs.global_network.outputs.ssh_host }}"
+          SSH_PORT="${{ needs.global_network.outputs.ssh_port }}"
+
+          printf '%s' '${{ needs.global_network.outputs.ssh_private_key }}' | base64 --decode > "$SSH_KEY_PATH"
+          chmod 600 "$SSH_KEY_PATH"
+
+          if ! ssh-keygen -y -f "$SSH_KEY_PATH" > /dev/null 2>&1; then
+            echo "Invalid SSH private key generated from workflow output."
+            exit 1
+          fi
+
+          echo "Trying to connect to ubuntu@$SSH_HOST on port $SSH_PORT"
+          SSH_OPTS=(-o ConnectTimeout=10 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p "$SSH_PORT" -i "$SSH_KEY_PATH")
+
+          connected="false"
+          for attempt in {1..12}; do
+            SSH_VERBOSE_OPTS=()
+            if [[ "$attempt" -eq 12 ]]; then
+              SSH_VERBOSE_OPTS=(-vvv)
+              echo "Final SSH attempt with verbose diagnostics enabled..."
+            fi
+
+            if ssh "${SSH_VERBOSE_OPTS[@]}" "${SSH_OPTS[@]}" "ubuntu@$SSH_HOST" "echo 'SSH connection successful.' && exit"; then
+              connected="true"
+              break
+            fi
+            echo "SSH not ready yet (attempt $attempt/12), retrying in 10s..."
+            sleep 10
+          done
+
+          if [[ "$connected" != "true" ]]; then
+            echo "Unable to establish SSH connection after retries."
+            exit 1
+          fi
+
           # SSH connection successful
           echo ""
           echo "##########  Test Ping  ##########"
           echo ""
           echo "ping -c 4 -W 10 -v ${{ needs.global_network.outputs.aws_vm_private_ip }}"
           echo ""
-          ssh -o ConnectTimeout=5 ubuntu@${{ needs.global_network.outputs.ssh_host }} -p ${{ needs.global_network.outputs.ssh_port }} -i $PWD/.ssh/test_vm.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "ping -c 4 -W 10 -v ${{ needs.global_network.outputs.aws_vm_private_ip }} || true && exit"
+          ssh "${SSH_OPTS[@]}" "ubuntu@$SSH_HOST" "ping -c 4 -W 10 -v ${{ needs.global_network.outputs.aws_vm_private_ip }} || true && exit"
           echo ""
           echo "##########  Test HTTP  ##########"
           echo ""
           echo "curl -s -D - http://${{ needs.global_network.outputs.aws_vm_private_ip }}/test"
           echo ""
-          ssh -o ConnectTimeout=5 ubuntu@${{ needs.global_network.outputs.ssh_host }} -p ${{ needs.global_network.outputs.ssh_port }} -i $PWD/.ssh/test_vm.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "curl -s -D - http://${{ needs.global_network.outputs.aws_vm_private_ip }}/test && exit"
+          ssh "${SSH_OPTS[@]}" "ubuntu@$SSH_HOST" "curl -s -D - http://${{ needs.global_network.outputs.aws_vm_private_ip }}/test && exit"
