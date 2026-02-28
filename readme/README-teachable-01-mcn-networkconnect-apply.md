@@ -416,7 +416,9 @@ apply_variables
 
 - **Falla en `enhanced_firewall` con "workspace not found":** Normal si nunca se ejecutó la lección `enhanced-firewall`. El workspace no existe y Terraform init fallará. Se puede ignorar; no impacta el resto del destroy.
 
-- **Recursos de red que no se destruyen (VPC/VNET):** Suele ocurrir si quedan recursos dependientes (ENIs, instancias) no creados por Terraform. Verificar en la consola AWS/Azure antes de reintentar.
+- **Recursos de red que no se destruyen (VPC/VNET) — error `InUseSubnetCannotBeDeleted`:**
+  El CE de XC crea NICs en Azure durante su aprovisionamiento. Cuando el `azure_vnet_site` destroy termina en Terraform/XC, el CE todavía puede tardar varios minutos en limpiar esas NICs en Azure. Si `azure_networking` intenta destruir la subnet mientras la NIC `TEACHABLE-MCN-NIC` aún existe, Azure devuelve error `400 InUseSubnetCannotBeDeleted`.
+  El workflow agrega automáticamente una espera de 3 minutos + 5 reintentos con 60 segundos de pausa en el destroy de `azure-networking`. Si persiste, esperar más tiempo y relanzar manualmente el destroy.
 
 ---
 
