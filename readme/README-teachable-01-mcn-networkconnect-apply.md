@@ -6,6 +6,73 @@ Este documento describe el workflow de GitHub Actions:
 
 Su objetivo es desplegar y validar escenarios del laboratorio **01-mcn-networkconnect** (AWS, Azure, Global Network y Enhanced Firewall) usando Terraform Cloud y credenciales de XC/AWS/Azure.
 
+---
+
+## Resumen de arquitectura y caso de uso
+
+### ¿Para qué sirve este laboratorio?
+
+Este laboratorio implementa un escenario de **Multi-Cloud Networking (MCN)** entre AWS y Azure utilizando **F5 Distributed Cloud (XC)** como plano de conectividad y control. Cubre tres capacidades clave de la plataforma:
+
+| Capacidad                                      | Descripción                                                                                                                                                                                                |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Conectividad multi-cloud**                   | Establece un túnel cifrado entre un sitio AWS y un sitio Azure a través de la Global Virtual Network de XC, sin necesidad de VPNs tradicionales ni peering directo entre nubes.                            |
+| **Customer Edge (CE) como punto de presencia** | Despliega nodos CE de F5 XC dentro del VPC/VNET del cliente, actuando como gateway inteligente con visibilidad y control de tráfico este-oeste entre nubes.                                                |
+| **Enhanced Firewall distribuido**              | Aplica políticas de seguridad de red directamente en el CE (micro-segmentación entre nubes), permitiendo bloquear o permitir flujos específicos sin alterar la infraestructura de red nativa de cada nube. |
+
+### Arquitectura conceptual
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         F5 Distributed Cloud (XC)                           │
+│                                                                              │
+│    ┌──────────────────────────────────────────────────────────────────┐     │
+│    │                    Global Virtual Network (GVN)                   │     │
+│    │          Plano de conectividad cifrada entre sitios               │     │
+│    └──────────┬───────────────────────────────────┬───────────────────┘     │
+└───────────────┼───────────────────────────────────┼─────────────────────────┘
+                │ Site Link                          │ Site Link
+     ┌──────────▼──────────┐               ┌─────────▼───────────┐
+     │    AWS VPC Site      │               │  Azure VNET Site     │
+     │  (Customer Edge CE)  │               │  (Customer Edge CE)  │
+     │                      │               │                      │
+     │  VPC 10.10.0.0/16    │               │  VNET 172.10.0.0/16  │
+     │  ├─ Outside (WAN)    │               │  ├─ Outside (WAN)    │
+     │  ├─ Inside  (LAN)    │               │  └─ Inside  (LAN)    │
+     │  └─ Workload subnet  │               │                      │
+     │     └─ AWS Test VM   │               │  └─ Azure Test VM    │
+     │        10.10.21.100  │               │     172.10.21.100    │
+     └──────────────────────┘               └─────────────────────┘
+              ▲  Ping / HTTP sobre GVN                ▲
+              └────────────────────────────────────────┘
+                 Tráfico este-oeste inter-cloud validado
+```
+
+### Casos de uso típicos
+
+1. **Conectar workloads en múltiples nubes sin infraestructura de red compleja**
+   Empresas que despliegan aplicaciones distribuidas entre AWS y Azure pueden usar XC MCN para que los servicios se comuniquen de forma privada sin gestionar VPNs, Transit Gateways o ExpressRoute/Direct Connect.
+
+2. **Migración progresiva de workloads entre nubes**
+   Permite que una aplicación en Azure consuma servicios legacy en AWS (o viceversa) durante una migración, con visibilidad y control de tráfico centralizado en XC.
+
+3. **Seguridad perimetral distribuida (Enhanced Firewall)**
+   Aplicar políticas de firewall L3/L4 en los CE de cada nube para micro-segmentar el tráfico inter-cloud sin depender de los security groups nativos de cada proveedor. Ideal cuando se requiere una política de seguridad uniforme multi-cloud.
+
+4. **Laboratorio de aprendizaje / PoC**
+   Valida en un entorno reproducible y automatizado cómo XC establece la conectividad, qué rutas se propagan y cómo se comporta el firewall distribuido ante reglas de permiso/denegación.
+
+### Componentes desplegados por lección
+
+```
+azure-vnet-site   →  Red Azure + Credenciales XC + CE Azure
+aws-vpc-site      →  Red AWS   + Credenciales XC + CE AWS
+global-network    →  Todo lo anterior + GVN + VMs de prueba + test ping/HTTP
+enhanced-firewall →  Todo lo anterior + reglas de firewall XC + test de bloqueo
+```
+
+---
+
 ## Objetivo del workflow
 
 El workflow orquesta, según la lección seleccionada:
@@ -287,6 +354,68 @@ También disponibles como outputs del job en la sección **Summary** del workflo
 - **Fallas de acceso cloud:**
   - Revisar expiración/permisos de credenciales AWS y Azure.
 
+---
+
+## Destroy del laboratorio
+
+### Workflow de destroy
+
+El archivo `.github/workflows/teachable-01-mcn-networkconnect-destroy.yaml` destruye **todos** los recursos aprovisionados por el apply, independientemente de la lección que fue ejecutada. No requiere seleccionar lección: elimina todo el stack completo en un único disparo.
+
+**Triggers:**
+
+- `workflow_dispatch` — ejecución manual desde GitHub Actions.
+- `workflow_call` — invocación desde otro workflow.
+
+**Input opcional:** `TF_VAR_prefix` — debe coincidir con el prefijo usado en el apply.
+
+### Orden de destrucción
+
+El destroy respeta el orden inverso al apply para evitar dependencias huérfanas en F5 XC y en las nubes:
+
+```
+apply_variables
+    └── enhanced_firewall          (1° — elimina política de firewall XC)
+            └── workloads          (2° — elimina GVN, conexiones inter-cloud y VMs)
+                    ├── aws_vpc_site    (3° — elimina CE en AWS)
+                    │       ├── aws_credentials   (4° — elimina credenciales AWS en XC)
+                    │       └── aws_networking    (4° — elimina VPC, subredes y SGs en AWS)
+                    └── azure_vnet_site  (3° — elimina CE en Azure)
+                            ├── azure_credentials  (4° — elimina credenciales Azure en XC)
+                            └── azure_networking   (4° — elimina VNET y subredes en Azure)
+```
+
+> **Importante:** El destroy del job `workloads` (global-network) usa valores ficticios en variables de red (`TF_VAR_name: "delete"`, CIDRs en `192.168.0.0/16`) para que Terraform pueda inicializar el módulo sin depender de outputs de otros jobs ya destruidos. Esto es intencional.
+
+### Jobs del workflow de destroy
+
+| Job                 | Terraform workspace         | Qué elimina                                              |
+| ------------------- | --------------------------- | -------------------------------------------------------- |
+| `enhanced_firewall` | `teachable-01-mcn-fw`       | Política de Enhanced Firewall en XC                      |
+| `workloads`         | `teachable-01-mcn`          | Global Virtual Network, VMs de prueba, rutas inter-cloud |
+| `aws_vpc_site`      | workspace AWS VPC Site      | Customer Edge en AWS (AWS VPC Site)                      |
+| `azure_vnet_site`   | workspace Azure VNET Site   | Customer Edge en Azure (Azure VNET Site)                 |
+| `aws_credentials`   | workspace AWS Credentials   | Cloud Credentials de AWS en XC                           |
+| `aws_networking`    | workspace AWS Networking    | VPC, subredes y security groups en AWS                   |
+| `azure_credentials` | workspace Azure Credentials | Cloud Credentials de Azure en XC                         |
+| `azure_networking`  | workspace Azure Networking  | VNET y subredes en Azure                                 |
+
+### Ejecución del destroy
+
+1. Ir a **Actions** en GitHub.
+2. Seleccionar workflow: **Teachable 01-mcn-networkconnect Destroy**.
+3. Ejecutar con **Run workflow**.
+4. (Opcional) definir `TF_VAR_prefix` si fue usado en el apply.
+
+### Troubleshooting del destroy
+
+- **Falla en `workloads`:** Verificar que los secretos XC (`XC_API_P12_FILE`, `XC_P12_PASSWORD`, `XC_API_URL`) y los de AWS/Azure sean válidos. Este job require todos porque destruye recursos en XC, AWS y Azure.
+- **Falla en `enhanced_firewall` con "workspace not found":** Normal si nunca se ejecutó la lección `enhanced-firewall`. El workspace no existe y Terraform init fallará. Se puede ignorar o el job fallará sin impacto en el resto del stack.
+- **Recursos de red que no se destruyen (VPC/VNET):** Suele ocurrir si quedan recursos dependientes (ENIs, instancias) no creados por Terraform. Verificar en la consola AWS/Azure antes de reintentar.
+
+---
+
 ## Ruta del archivo del workflow
 
 - `.github/workflows/teachable-01-mcn-networkconnect-apply.yaml`
+- `.github/workflows/teachable-01-mcn-networkconnect-destroy.yaml`
