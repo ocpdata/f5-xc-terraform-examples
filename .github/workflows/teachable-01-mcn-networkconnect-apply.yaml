@@ -378,6 +378,19 @@ jobs:
           }
           EOF
 
+      - name: Setup SSH Key
+        run: |
+          if [ -n "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
+            printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > /tmp/ssh_import_key
+            chmod 600 /tmp/ssh_import_key
+            SSH_PUB=$(ssh-keygen -y -f /tmp/ssh_import_key)
+            rm /tmp/ssh_import_key
+            echo "TF_VAR_ssh_public_key=$SSH_PUB" >> "$GITHUB_ENV"
+            echo "Using SSH public key derived from SSH_PRIVATE_KEY secret for VM provisioning."
+          else
+            echo "SSH_PRIVATE_KEY secret not set — auto-generated key will be used."
+          fi
+
       - name: Terraform Init
         id: init
         run: terraform init
