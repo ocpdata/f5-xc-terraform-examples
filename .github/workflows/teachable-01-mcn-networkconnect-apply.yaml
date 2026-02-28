@@ -515,7 +515,7 @@ jobs:
           SSH_PORT="${{ needs.global_network.outputs.ssh_port }}"
 
           if [ -n "$SSH_PRIVATE_KEY_SECRET" ]; then
-            printf '%s' "$SSH_PRIVATE_KEY_SECRET" > "$SSH_KEY_PATH"
+            printf '%s\n' "$SSH_PRIVATE_KEY_SECRET" > "$SSH_KEY_PATH"
             echo "Using SSH_PRIVATE_KEY secret for authentication."
           else
             printf '%s' '${{ needs.global_network.outputs.ssh_private_key }}' | base64 --decode > "$SSH_KEY_PATH"
@@ -706,7 +706,7 @@ jobs:
           SSH_PORT="${{ needs.global_network.outputs.ssh_port }}"
 
           if [ -n "$SSH_PRIVATE_KEY_SECRET" ]; then
-            printf '%s' "$SSH_PRIVATE_KEY_SECRET" > "$SSH_KEY_PATH"
+            printf '%s\n' "$SSH_PRIVATE_KEY_SECRET" > "$SSH_KEY_PATH"
             echo "Using SSH_PRIVATE_KEY secret for authentication."
           else
             printf '%s' '${{ needs.global_network.outputs.ssh_private_key }}' | base64 --decode > "$SSH_KEY_PATH"
