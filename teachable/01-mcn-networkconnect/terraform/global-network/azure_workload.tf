@@ -80,7 +80,7 @@ resource "azurerm_linux_virtual_machine" "test-vm" {
 
   admin_ssh_key {
     username   = "ubuntu"
-    public_key = tls_private_key.key.public_key_openssh
+    public_key = local.resolved_ssh_public_key
   }
 
   os_disk {

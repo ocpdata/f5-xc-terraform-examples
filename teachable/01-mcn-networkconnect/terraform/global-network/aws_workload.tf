@@ -60,7 +60,7 @@ data "aws_ami" "ubuntu" {
 
 resource "aws_key_pair" "test_vm_key" {
   key_name   = format("%s-key", local.workload_name)
-  public_key = tls_private_key.key.public_key_openssh
+  public_key = local.resolved_ssh_public_key
 }
 
 resource "aws_instance" "aws_test_vm" {

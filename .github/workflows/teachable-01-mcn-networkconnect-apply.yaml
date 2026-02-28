@@ -488,6 +488,8 @@ jobs:
     defaults:
       run:
         working-directory: "./teachable/01-mcn-networkconnect/terraform/global-network"
+    env:
+      SSH_PRIVATE_KEY_SECRET: ${{ secrets.SSH_PRIVATE_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -499,11 +501,17 @@ jobs:
           SSH_HOST="${{ needs.global_network.outputs.ssh_host }}"
           SSH_PORT="${{ needs.global_network.outputs.ssh_port }}"
 
-          printf '%s' '${{ needs.global_network.outputs.ssh_private_key }}' | base64 --decode > "$SSH_KEY_PATH"
+          if [ -n "$SSH_PRIVATE_KEY_SECRET" ]; then
+            printf '%s' "$SSH_PRIVATE_KEY_SECRET" > "$SSH_KEY_PATH"
+            echo "Using SSH_PRIVATE_KEY secret for authentication."
+          else
+            printf '%s' '${{ needs.global_network.outputs.ssh_private_key }}' | base64 --decode > "$SSH_KEY_PATH"
+            echo "Using auto-generated SSH key from Terraform output."
+          fi
           chmod 600 "$SSH_KEY_PATH"
 
           if ! ssh-keygen -y -f "$SSH_KEY_PATH" > /dev/null 2>&1; then
-            echo "Invalid SSH private key generated from workflow output."
+            echo "Invalid SSH private key."
             exit 1
           fi
 
@@ -671,6 +679,8 @@ jobs:
     defaults:
       run:
         working-directory: "./teachable/01-mcn-networkconnect/terraform/enhanced-firewall"
+    env:
+      SSH_PRIVATE_KEY_SECRET: ${{ secrets.SSH_PRIVATE_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -682,11 +692,17 @@ jobs:
           SSH_HOST="${{ needs.global_network.outputs.ssh_host }}"
           SSH_PORT="${{ needs.global_network.outputs.ssh_port }}"
 
-          printf '%s' '${{ needs.global_network.outputs.ssh_private_key }}' | base64 --decode > "$SSH_KEY_PATH"
+          if [ -n "$SSH_PRIVATE_KEY_SECRET" ]; then
+            printf '%s' "$SSH_PRIVATE_KEY_SECRET" > "$SSH_KEY_PATH"
+            echo "Using SSH_PRIVATE_KEY secret for authentication."
+          else
+            printf '%s' '${{ needs.global_network.outputs.ssh_private_key }}' | base64 --decode > "$SSH_KEY_PATH"
+            echo "Using auto-generated SSH key from Terraform output."
+          fi
           chmod 600 "$SSH_KEY_PATH"
 
           if ! ssh-keygen -y -f "$SSH_KEY_PATH" > /dev/null 2>&1; then
-            echo "Invalid SSH private key generated from workflow output."
+            echo "Invalid SSH private key."
             exit 1
           fi
 

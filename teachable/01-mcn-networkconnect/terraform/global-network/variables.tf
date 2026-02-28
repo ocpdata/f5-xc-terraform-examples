@@ -148,3 +148,9 @@ variable "aws_region" {
   default     = "us-east-1"
   description = "AWS region"
 }
+
+variable "ssh_public_key" {
+  type        = string
+  description = "Optional external SSH public key. When set, the VMs are provisioned with this key instead of an auto-generated one. Set the corresponding private key as the SSH_PRIVATE_KEY GitHub Secret."
+  default     = ""
+}
