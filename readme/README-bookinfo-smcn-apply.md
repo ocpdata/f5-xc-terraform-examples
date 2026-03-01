@@ -27,11 +27,16 @@ Este laboratorio implementa un escenario de **aplicación distribuida multi-clou
 │                          F5 Distributed Cloud (XC)                            │
 │                                                                                │
 │   ┌──────────────────────────────────────────────────────────────────────┐    │
-│   │           XC HTTP Load Balancer (bookinfo.smcn.f5-cloud-demo.com)    │    │
-│   │                  WAF Policy (OWASP protection)                        │    │
+│   │     XC HTTP LB Público: bookinfo.smcn.f5-cloud-demo.com (+ WAF)      │    │
+│   │     Origin Pool → AWS Site (outside) → productpage en EKS            │    │
+│   └────────────────────┬─────────────────────────────────────────────────┘    │
+│                         │                                                      │
+│   ┌─────────────────────┴────────────────────────────────────────────────┐    │
+│   │     XC HTTP LB Interno: details_domain (solo inside AWS Site)        │    │
+│   │     Origin Pool → Azure Site (inside) → details en AKS              │    │
 │   └────────────────────┬────────────────────────┬────────────────────────┘    │
 └────────────────────────┼────────────────────────┼─────────────────────────────┘
-                         │ XC Origin Pool           │ XC Origin Pool
+                         │ XC Origin Pool (outside) │ XC Origin Pool (inside)
           ┌──────────────▼──────────┐    ┌──────────▼────────────┐
           │      AWS VPC Site       │    │    Azure VNET Site     │
           │   (Customer Edge CE)    │    │   (Customer Edge CE)   │
@@ -41,11 +46,11 @@ Este laboratorio implementa un escenario de **aplicación distribuida multi-clou
           │  ├─ Inside  (LAN)       │    │  ├─ Inside  (LAN)      │
           │  └─ EKS Cluster         │    │  └─ AKS Cluster        │
           │     (us-east-1)         │    │     (centralus)        │
-          │     ├─ reviews          │    │     ├─ productpage      │
-          │     └─ ratings          │    │     └─ details         │
+          │     └─ productpage ─────┼────┼──► details             │
+          │        (NodePort 31001) │    │   (puerto 9080)        │
           └─────────────────────────┘    └────────────────────────┘
-                        ▲  Tráfico este-oeste inter-cloud via XC         ▲
-                        └─────────────────────────────────────────────────┘
+                   Llamada interna: productpage → details via XC LB interno
+                   (CoreDNS en EKS resuelve details_domain → XC inside IP)
 ```
 
 ### Casos de uso típicos
@@ -185,6 +190,9 @@ Crea el cluster EKS en AWS usando las subredes y VPC del job `aws_networking`. O
 
 - `cluster_name`, `cluster_endpoint`, `cluster_id`, `kubeconfig`
 
+> **Microservicio desplegado en EKS:** `productpage` (NodePort 31001)  
+> Es el frontend de Bookinfo. Llama internamente al servicio `details` a través de XC: CoreDNS en EKS resuelve `details_domain` hacia la IP inside del XC CE en AWS, que enruta la petición al LB interno de XC hacia AKS en Azure.
+
 ### `azure_aks`
 
 Crea el cluster AKS en Azure usando las subredes del job `azure_networking`.  
@@ -195,6 +203,11 @@ Incluye un step previo al `terraform apply` que:
 3. Espera 120 segundos para propagación de IAM antes de continuar
 
 Outputs: `cluster_name`, `cluster_endpoint`
+
+> **Microservicio desplegado en AKS:** `details` (puerto 9080)  
+> Sirve la información detallada del libro (autor, páginas, tipo). Es consumido exclusivamente por `productpage` en EKS a través del LB interno de XC, nunca de forma directa desde internet.
+
+> **Nota:** Los microservicios `reviews` y `ratings` de la aplicación Bookinfo **no se despliegan** en este escenario. El foco del laboratorio es demostrar la comunicación inter-cloud entre exactamente dos microservicios en nubes distintas.
 
 ### `workload`
 
@@ -212,11 +225,13 @@ Solo para `deployment: enable-waf`. Aplica una política WAF de F5 XC sobre los 
 
 Solo para `deployment: enable-waf`. Ejecuta tres pruebas HTTP para validar la implementación:
 
-| Prueba                  | URL                                      | Resultado esperado          |
-| ----------------------- | ---------------------------------------- | --------------------------- |
-| Conectividad Product LB | `http://<domain>/`                       | HTTP 200, página Bookinfo   |
-| Página de producto      | `http://<domain>/productpage?u=normal`   | HTTP 200, reseñas visibles  |
-| Ataque XSS              | `http://<domain>?a=<script>...</script>` | HTTP 403, bloqueado por WAF |
+| Prueba                  | URL                                      | Resultado esperado                                |
+| ----------------------- | ---------------------------------------- | ------------------------------------------------- |
+| Conectividad Product LB | `http://<domain>/`                       | HTTP 200, página Bookinfo                         |
+| Página de producto      | `http://<domain>/productpage?u=normal`   | HTTP 200, página carga con sección details activa |
+| Ataque XSS              | `http://<domain>?a=<script>...</script>` | HTTP 403, bloqueado por WAF                       |
+
+> **Nota:** `reviews` y `ratings` no están desplegados en este escenario, por lo que la sección de reseñas de la página puede mostrarse vacía o con error. Esto es esperado.
 
 ## Arquitectura desplegada por el workflow
 
@@ -237,7 +252,7 @@ flowchart TD
       AWS_WL[Workload Subnets\n172.10.211-212.0/24]
     end
     AWS_CE[XC AWS VPC Site CE]
-    EKS[EKS Cluster\nreviews + ratings]
+    EKS["EKS Cluster\nproductpage :31001"]
     AWS_OUT --> AWS_CE
     AWS_IN --> AWS_CE
     EKS --> AWS_WL
@@ -249,15 +264,18 @@ flowchart TD
       AZ_IN[Inside Subnet\n172.10.21.0/24]
     end
     AZ_CE[XC Azure VNET Site CE]
-    AKS[AKS Cluster\nproductpage + details]
+    AKS["AKS Cluster\ndetails :9080"]
     AZ_OUT --> AZ_CE
     AZ_IN --> AZ_CE
     AKS --> AZ_IN
   end
 
-  RUNNER --> LB
-  LB --> AWS_CE
-  LB --> AZ_CE
+  RUNNER -->|"HTTP público"| LB
+  LB -->|"XC Origin Pool outside"| AWS_CE
+  AWS_CE -->|"NodePort 31001"| EKS
+  EKS -->|"CoreDNS → XC inside IP"| AWS_CE
+  AWS_CE -->|"XC LB interno → details"| AZ_CE
+  AZ_CE -->|"puerto 9080"| AKS
   AWS_CE <-->|XC Multi-Cloud Fabric| AZ_CE
 ```
 
