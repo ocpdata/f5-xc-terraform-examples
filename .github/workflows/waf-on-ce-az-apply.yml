@@ -279,6 +279,24 @@ jobs:
           EOF
           echo "${{ secrets.XC_API_P12_FILE }}" | base64 -d > api.p12
 
+      - name: Create XC Namespace if not exists
+        run: |
+          XC_API_BASE=$(echo "${{ secrets.XC_API_URL }}" | sed 's|/api$||')
+          HTTP_CODE=$(curl -s -o /tmp/ns_response.json -w "%{http_code}" \
+            --cert-type P12 \
+            --cert api.p12:"${{ secrets.XC_P12_PASSWORD }}" \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -d "{\"metadata\":{\"name\":\"${{ vars.XC_NAMESPACE }}\",\"namespace\":\"system\"},\"spec\":{}}" \
+            "${XC_API_BASE}/api/web/namespaces")
+          echo "Response code: ${HTTP_CODE}"
+          cat /tmp/ns_response.json
+          # 200=created, 409=already exists — both are acceptable
+          if [ "${HTTP_CODE}" != "200" ] && [ "${HTTP_CODE}" != "409" ]; then
+            echo "ERROR: Failed to create namespace (HTTP ${HTTP_CODE})"
+            exit 1
+          fi
+
       - name: Derive SSH public key from private key
         run: |
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > /tmp/ssh_private_key
