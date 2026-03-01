@@ -40,6 +40,7 @@ on:
       AZURE_TENANT_ID:
       AZURE_CLIENT_ID:
       AZURE_CLIENT_SECRET:
+      AZURE_CLIENT_OBJECT_ID:
       AZURE_OWNER_CLIENT_ID:
       AZURE_OWNER_CLIENT_SECRET:
       XC_AWS_CLOUD_CREDENTIALS_NAME:
@@ -466,15 +467,11 @@ jobs:
             --password "${{ secrets.AZURE_OWNER_CLIENT_SECRET }}" \
             --tenant "${{ secrets.AZURE_TENANT_ID }}"
 
-          # Resolve the objectId from the appId/clientId to avoid Graph lookup issues
-          SP_OBJECT_ID=$(az ad sp show --id "${{ secrets.AZURE_CLIENT_ID }}" --query id -o tsv)
-          echo "Terraform SP Object ID: $SP_OBJECT_ID"
-
           SCOPE="/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/secure-mcn"
 
-          # Only create if it doesn't already exist
+          # Only create if it doesn't already exist (uses objectId directly to avoid Graph API lookup)
           EXISTING=$(az role assignment list \
-            --assignee "$SP_OBJECT_ID" \
+            --assignee "${{ secrets.AZURE_CLIENT_OBJECT_ID }}" \
             --role "User Access Administrator" \
             --scope "$SCOPE" \
             --query "[].id" -o tsv)
@@ -482,7 +479,7 @@ jobs:
           if [ -z "$EXISTING" ]; then
             echo "Creating role assignment..."
             az role assignment create \
-              --assignee-object-id "$SP_OBJECT_ID" \
+              --assignee-object-id "${{ secrets.AZURE_CLIENT_OBJECT_ID }}" \
               --assignee-principal-type ServicePrincipal \
               --role "User Access Administrator" \
               --scope "$SCOPE"
