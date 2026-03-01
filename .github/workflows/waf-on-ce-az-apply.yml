@@ -1,97 +1,202 @@
 name: "F5XC WAF on CE Deploy"
+# All Terraform variables and secrets are defined in GitHub.
+# TFC workspaces are created automatically by the setup_tfc_workspaces job via
+# the Terraform Cloud API. Each workspace is configured with Execution Mode
+# "local" and Remote State Sharing enabled between all three workspaces.
+#
+# Required GitHub Secrets:
+#   TF_API_TOKEN                      - Terraform Cloud API token
+#   TF_CLOUD_ORGANIZATION             - Terraform Cloud organization name
+#   AZURE_SUBSCRIPTION_ID             - Azure Subscription ID (secret)
+#   AZURE_TENANT_ID                   - Azure Tenant ID (secret)
+#   AZURE_CLIENT_ID                   - Azure Service Principal App ID (secret)
+#   AZURE_CLIENT_SECRET               - Azure Service Principal Password (secret)
+#   SSH_PRIVATE_KEY                   - SSH private key (public key is derived at runtime) (secret)
+#   XC_TENANT                         - F5 XC tenant name (secret)
+#   XC_API_URL                        - F5 XC API URL (secret)
+#   XC_P12_PASSWORD                   - Password for the F5 XC .p12 certificate (secret)
+#   XC_API_P12_FILE                   - F5 XC API certificate (.p12) in base64 (secret)
+#
+# Required GitHub Variables (Settings -> Secrets and variables -> Variables):
+#   TF_CLOUD_WORKSPACE_AZURE_INFRA    - TFC workspace name for Azure Infra
+#   TF_CLOUD_WORKSPACE_AKS_CLUSTER    - TFC workspace name for AKS Cluster
+#   TF_CLOUD_WORKSPACE_XC_DEPLOY      - TFC workspace name for F5 XC
+#   AZURE_REGION                      - Azure region (e.g. eastus)
+#   PROJECT_PREFIX                    - Prefix for all resource names
+#   XC_NAMESPACE                      - F5 XC namespace
+#   APP_DOMAIN                        - App FQDN
 
 on:
-  push:
-    branches:
-      - deploy-waf-az-ce
-  pull_request:
+  workflow_dispatch:
 
 jobs:
+  setup_tfc_workspaces:
+    name: "Setup TFC Workspaces"
+    runs-on: ubuntu-latest
+    env:
+      TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
+      TF_ORG: ${{ secrets.TF_CLOUD_ORGANIZATION }}
+      WS_AZURE_INFRA: ${{ vars.TF_CLOUD_WORKSPACE_AZURE_INFRA }}
+      WS_AKS_CLUSTER: ${{ vars.TF_CLOUD_WORKSPACE_AKS_CLUSTER }}
+      WS_XC_DEPLOY: ${{ vars.TF_CLOUD_WORKSPACE_XC_DEPLOY }}
+    steps:
+      - name: Create workspaces and configure Remote State Sharing
+        run: |
+          TFC_API="https://app.terraform.io/api/v2"
+          AUTH="Authorization: Bearer ${TF_API_TOKEN}"
+          CT="Content-Type: application/vnd.api+json"
+
+          # Creates the workspace if it does not exist, or ensures execution-mode
+          # is set to "local" if it already exists. Returns the workspace ID.
+          create_or_update_workspace() {
+            local ws_name=$1
+            # Check if workspace already exists
+            existing=$(curl -sf \
+              --header "${AUTH}" \
+              "${TFC_API}/organizations/${TF_ORG}/workspaces/${ws_name}" || true)
+
+            if [ -n "${existing}" ]; then
+              echo "Workspace '${ws_name}' already exists — ensuring execution-mode=local" >&2
+              ws_id=$(echo "${existing}" | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['id'])")
+              curl -sf \
+                --header "${AUTH}" \
+                --header "${CT}" \
+                --request PATCH \
+                --data "{\"data\":{\"type\":\"workspaces\",\"attributes\":{\"execution-mode\":\"local\"}}}" \
+                "${TFC_API}/workspaces/${ws_id}" > /dev/null
+            else
+              echo "Creating workspace '${ws_name}'" >&2
+              response=$(curl -sf \
+                --header "${AUTH}" \
+                --header "${CT}" \
+                --request POST \
+                --data "{\"data\":{\"type\":\"workspaces\",\"attributes\":{\"name\":\"${ws_name}\",\"execution-mode\":\"local\",\"global-remote-state\":false}}}" \
+                "${TFC_API}/organizations/${TF_ORG}/workspaces")
+              ws_id=$(echo "${response}" | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['id'])")
+            fi
+            echo "${ws_id}"
+          }
+
+          # Add a remote state consumer: workspace PRODUCER_ID shares its state
+          # with workspace CONSUMER_ID. 422 means the relationship already exists.
+          add_remote_state_consumer() {
+            local producer_id=$1
+            local consumer_id=$2
+            http_code=$(curl -s -o /dev/null -w "%{http_code}" \
+              --header "${AUTH}" \
+              --header "${CT}" \
+              --request POST \
+              --data "{\"data\":[{\"id\":\"${consumer_id}\",\"type\":\"workspaces\"}]}" \
+              "${TFC_API}/workspaces/${producer_id}/relationships/remote-state-consumers")
+            if [ "${http_code}" = "204" ] || [ "${http_code}" = "422" ]; then
+              echo "  remote-state-consumer ok (${http_code})"
+            else
+              echo "  ERROR adding remote-state-consumer: HTTP ${http_code}" && exit 1
+            fi
+          }
+
+          echo "=== Creating / updating workspaces ==="
+          ID_INFRA=$(create_or_update_workspace "${WS_AZURE_INFRA}")
+          echo "  Azure Infra  -> ${ID_INFRA}"
+          ID_AKS=$(create_or_update_workspace "${WS_AKS_CLUSTER}")
+          echo "  AKS Cluster  -> ${ID_AKS}"
+          ID_XC=$(create_or_update_workspace "${WS_XC_DEPLOY}")
+          echo "  XC Deploy    -> ${ID_XC}"
+
+          echo "=== Configuring Remote State Sharing ==="
+          # Azure Infra state readable by AKS and XC
+          echo "Azure Infra -> AKS:"
+          add_remote_state_consumer "${ID_INFRA}" "${ID_AKS}"
+          echo "Azure Infra -> XC:"
+          add_remote_state_consumer "${ID_INFRA}" "${ID_XC}"
+          # AKS state readable by XC
+          echo "AKS -> XC:"
+          add_remote_state_consumer "${ID_AKS}" "${ID_XC}"
 
   terraform_infra:
     name: "Azure Infra"
+    needs: setup_tfc_workspaces
     runs-on: ubuntu-latest
+    env:
+      TF_VAR_azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_azure_subscription_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+      TF_VAR_azure_service_principal_appid: ${{ secrets.AZURE_CLIENT_ID }}
+      TF_VAR_azure_service_principal_password: ${{ secrets.AZURE_CLIENT_SECRET }}
+      TF_VAR_azure_region: ${{ vars.AZURE_REGION }}
+      TF_VAR_project_prefix: ${{ vars.PROJECT_PREFIX }}
     defaults:
       run:
         working-directory: ./azure/azure-infra
     steps:
-      - name: Checkout    
+      - name: Checkout
         uses: actions/checkout@v4
-      
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
 
-      - name: Setup Terraform Backend
+      - name: Setup Terraform Backend and Variables
         id: backend
         run: |
-          cat > backend.tf << EOF
+          cat > backend.tf <<-EOF
           terraform {
             cloud {
               organization = "${{ secrets.TF_CLOUD_ORGANIZATION }}"
               workspaces {
-                name = "${{ secrets.TF_CLOUD_WORKSPACE_AZURE_INFRA }}"
+                name = "${{ vars.TF_CLOUD_WORKSPACE_AZURE_INFRA }}"
               }
             }
           }
           EOF
-          
+          # Variables with hyphens cannot be set via TF_VAR_* env vars,
+          # so they are written to a tfvars file.
+          cat > github.auto.tfvars <<-EOF
+          nap        = false
+          nic        = false
+          bigip      = false
+          "bigip-cis"   = false
+          "aks-cluster" = true
+          "azure-vm"    = false
+          EOF
+
       - name: Terraform Init
         id: init
         run: terraform init
-      
+
       - name: Terraform Validate
         id: validate
         run: terraform validate -no-color
 
       - name: Terraform Plan
         id: plan
-        if: github.event_name == 'pull_request'
         run: terraform plan -no-color -input=false
         continue-on-error: true
 
-      - uses: actions/github-script@v6
-        if: github.event_name == 'pull_request'
-        env:
-          PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const output = `#### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
-            #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
-            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
-            <details><summary>Show Plan</summary>
-            \`\`\`\n
-            ${process.env.PLAN}
-            \`\`\`
-            </details>
-            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: output
-            })
       - name: Terraform Plan Status
         if: steps.plan.outcome == 'failure'
         run: exit 1
 
       - name: Terraform Apply
-        if: github.ref == 'refs/heads/deploy-waf-az-ce' && github.event_name == 'push'
         run: terraform apply -auto-approve -input=false
-          
+
   terraform_aks:
     name: "Azure AKS"
     runs-on: ubuntu-latest
     needs: terraform_infra
+    env:
+      TF_VAR_tf_cloud_organization: ${{ secrets.TF_CLOUD_ORGANIZATION }}
+      TF_VAR_azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_azure_subscription_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+      TF_VAR_azure_service_principal_appid: ${{ secrets.AZURE_CLIENT_ID }}
+      TF_VAR_azure_service_principal_password: ${{ secrets.AZURE_CLIENT_SECRET }}
     defaults:
       run:
         working-directory: ./azure/aks-cluster
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -100,132 +205,101 @@ jobs:
       - name: Setup Terraform Backend
         id: backend
         run: |
-          cat > backend.tf << EOF
+          cat > backend.tf <<-EOF
           terraform {
             cloud {
               organization = "${{ secrets.TF_CLOUD_ORGANIZATION }}"
               workspaces {
-                name = "${{ secrets.TF_CLOUD_WORKSPACE_AKS_CLUSTER }}"
+                name = "${{ vars.TF_CLOUD_WORKSPACE_AKS_CLUSTER }}"
               }
             }
           }
           EOF
-          
+
       - name: Terraform Init
         id: init
         run: terraform init
-      
+
       - name: Terraform Validate
         id: validate
         run: terraform validate -no-color
 
       - name: Terraform Plan
         id: plan
-        if: github.event_name == 'pull_request'
         run: terraform plan -no-color -input=false
         continue-on-error: true
 
-      - uses: actions/github-script@v6
-        if: github.event_name == 'pull_request'
-        env:
-          PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const output = `#### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
-            #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
-            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
-            <details><summary>Show Plan</summary>
-            \`\`\`\n
-            ${process.env.PLAN}
-            \`\`\`
-            </details>
-            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: output
-            })
       - name: Terraform Plan Status
         if: steps.plan.outcome == 'failure'
         run: exit 1
 
       - name: Terraform Apply
-        if: github.ref == 'refs/heads/deploy-waf-az-ce' && github.event_name == 'push'
         run: terraform apply -auto-approve -input=false
-  
+
   terraform_xc_lb:
     name: "F5XC WAF"
     runs-on: ubuntu-latest
     needs: terraform_aks
+    env:
+      TF_VAR_tf_cloud_organization: ${{ secrets.TF_CLOUD_ORGANIZATION }}
+      TF_VAR_azure: ${{ vars.TF_CLOUD_WORKSPACE_AZURE_INFRA }}
+      TF_VAR_xc_tenant: ${{ secrets.XC_TENANT }}
+      TF_VAR_api_url: ${{ secrets.XC_API_URL }}
+      TF_VAR_xc_namespace: ${{ vars.XC_NAMESPACE }}
+      TF_VAR_app_domain: ${{ vars.APP_DOMAIN }}
+      VOLT_API_P12_FILE: ${{ github.workspace }}/xc/api.p12
+      VES_P12_PASSWORD: ${{ secrets.XC_P12_PASSWORD }}
     defaults:
       run:
         working-directory: ./xc
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
 
-      - name: Setup Terraform Backend
+      - name: Setup Terraform Backend and Certificate
         id: backend
         run: |
-          cat > backend.tf << EOF
+          cat > backend.tf <<-EOF
           terraform {
             cloud {
               organization = "${{ secrets.TF_CLOUD_ORGANIZATION }}"
               workspaces {
-                name = "${{ secrets.TF_CLOUD_WORKSPACE_XC_DEPLOY }}"
+                name = "${{ vars.TF_CLOUD_WORKSPACE_XC_DEPLOY }}"
               }
             }
           }
           EOF
-           echo "${{secrets.P12}}" | base64 -d > api.p12
-          
+          echo "${{ secrets.XC_API_P12_FILE }}" | base64 -d > api.p12
+
+      - name: Derive SSH public key from private key
+        run: |
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > /tmp/ssh_private_key
+          chmod 600 /tmp/ssh_private_key
+          SSH_PUB=$(ssh-keygen -y -f /tmp/ssh_private_key)
+          rm -f /tmp/ssh_private_key
+          echo "TF_VAR_ssh_key=${SSH_PUB}" >> $GITHUB_ENV
+
       - name: Terraform Init
         id: init
         run: terraform init
-      
+
       - name: Terraform Validate
         id: validate
         run: terraform validate -no-color
 
       - name: Terraform Plan
         id: plan
-        if: github.event_name == 'pull_request'
         run: terraform plan -no-color -input=false
         continue-on-error: true
 
-      - uses: actions/github-script@v6
-        if: github.event_name == 'pull_request'
-        env:
-          PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const output = `#### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
-            #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
-            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
-            <details><summary>Show Plan</summary>
-            \`\`\`\n
-            ${process.env.PLAN}
-            \`\`\`
-            </details>
-            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: output
-            })
       - name: Terraform Plan Status
         if: steps.plan.outcome == 'failure'
         run: exit 1
 
       - name: Terraform Apply
-        if: github.ref == 'refs/heads/deploy-waf-az-ce' && github.event_name == 'push'
         run: terraform apply -auto-approve -input=false
