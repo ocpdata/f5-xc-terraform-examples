@@ -1,5 +1,5 @@
 resource "volterra_app_setting" "mud-app-settings" {
-  count = contains(var.xc_app_type, "mud") ? 1 : 0
+  count = var.xc_app_type != null && contains(var.xc_app_type, "mud") ? 1 : 0
   name = format("%s-mud-app-set-%s", local.project_prefix, local.build_suffix)
   namespace = var.xc_namespace
   app_type_settings {
@@ -38,7 +38,7 @@ resource "volterra_app_setting" "mud-app-settings" {
 }
 
 resource "volterra_malicious_user_mitigation" "mud-mitigation" {
-    count = contains(var.xc_app_type, "mud") ? 1 : 0
+    count = var.xc_app_type != null && contains(var.xc_app_type, "mud") ? 1 : 0
     name = format("%s-mud-mit-%s", local.project_prefix, local.build_suffix)
     namespace = var.xc_namespace
     mitigation_type {
