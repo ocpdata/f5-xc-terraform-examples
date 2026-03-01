@@ -465,15 +465,34 @@ jobs:
             --username "${{ secrets.AZURE_OWNER_CLIENT_ID }}" \
             --password "${{ secrets.AZURE_OWNER_CLIENT_SECRET }}" \
             --tenant "${{ secrets.AZURE_TENANT_ID }}"
+
+          # Resolve the objectId from the appId/clientId to avoid Graph lookup issues
+          SP_OBJECT_ID=$(az ad sp show --id "${{ secrets.AZURE_CLIENT_ID }}" --query id -o tsv)
+          echo "Terraform SP Object ID: $SP_OBJECT_ID"
+
           SCOPE="/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/secure-mcn"
-          az role assignment create \
-            --assignee "${{ secrets.AZURE_CLIENT_ID }}" \
+
+          # Only create if it doesn't already exist
+          EXISTING=$(az role assignment list \
+            --assignee "$SP_OBJECT_ID" \
             --role "User Access Administrator" \
             --scope "$SCOPE" \
-            --only-show-errors || echo "Role assignment already exists or skipped"
+            --query "[].id" -o tsv)
+
+          if [ -z "$EXISTING" ]; then
+            echo "Creating role assignment..."
+            az role assignment create \
+              --assignee-object-id "$SP_OBJECT_ID" \
+              --assignee-principal-type ServicePrincipal \
+              --role "User Access Administrator" \
+              --scope "$SCOPE"
+            echo "Waiting 120s for Azure IAM role propagation..."
+            sleep 120
+          else
+            echo "Role assignment already exists, skipping."
+          fi
+
           az logout
-          echo "Waiting 120s for Azure IAM role propagation..."
-          sleep 120
 
       - name: Terraform Apply
         run: terraform apply -no-color -auto-approve -input=false
