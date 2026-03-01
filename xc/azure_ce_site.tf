@@ -12,6 +12,13 @@ resource "volterra_cloud_credentials" "azure_cred" {
     subscription_id = "${var.azure_subscription_id}"
     tenant_id       = "${var.azure_subscription_tenant_id}"
   }
+
+  # XC deletes the azure_vnet_site asynchronously. Wait before deleting
+  # credentials so XC has time to remove the site reference.
+  provisioner "local-exec" {
+    when    = destroy
+    command = "sleep 90"
+  }
 }
 
 resource "volterra_azure_vnet_site" "azure_vnet_site" {
