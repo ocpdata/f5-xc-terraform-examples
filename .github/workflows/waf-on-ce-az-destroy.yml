@@ -105,6 +105,7 @@ jobs:
         run: terraform destroy -auto-approve -input=false
 
       - name: Delete XC Namespace
+        continue-on-error: true
         run: |
           XC_API_BASE=$(echo "${{ secrets.XC_API_URL }}" | sed 's|/api$||')
           # Extract cert and key from P12 for curl (use -legacy for OpenSSL 3.x compatibility)
