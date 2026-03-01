@@ -211,11 +211,20 @@ Outputs: `cluster_name`, `cluster_endpoint`
 
 ### `workload`
 
-Despliega la aplicación Bookinfo en ambos clusters y configura los HTTP Load Balancers en XC. Requiere que todos los jobs anteriores (`aws_vpc_site`, `azure_vnet_site`, `aws_eks`, `azure_aks`) hayan completado exitosamente. Outputs:
+Despliega las aplicaciones customizadas en ambos clusters, crea los `ConfigMap` con el código Flask e configura los HTTP Load Balancers en XC. Requiere que todos los jobs anteriores (`aws_vpc_site`, `azure_vnet_site`, `aws_eks`, `azure_aks`) hayan completado exitosamente. Outputs:
 
 - `product_domain`, `details_domain`
 - `product_loadbalancer_name`, `details_loadbalancer_name`
 - `xc_namespace`, `aws_xc_node_outside_ip`
+
+> **Aplicaciones desplegadas en este job:**
+>
+> | App           | Cluster     | Imagen             | Código                       |
+> | ------------- | ----------- | ------------------ | ---------------------------- |
+> | `productpage` | EKS (AWS)   | `python:3.11-slim` | ConfigMap `productpage-code` |
+> | `details`     | AKS (Azure) | `python:3.11-slim` | ConfigMap `details-code`     |
+>
+> Ambas apps instalan `flask` y `requests` al arrancar. El readiness probe espera 35 segundos antes de marcar el pod como listo.
 
 ### `enable_waf_product`, `enable_waf_details`
 
@@ -225,13 +234,49 @@ Solo para `deployment: enable-waf`. Aplica una política WAF de F5 XC sobre los 
 
 Solo para `deployment: enable-waf`. Ejecuta tres pruebas HTTP para validar la implementación:
 
-| Prueba                  | URL                                      | Resultado esperado                                |
-| ----------------------- | ---------------------------------------- | ------------------------------------------------- |
-| Conectividad Product LB | `http://<domain>/`                       | HTTP 200, página Bookinfo                         |
-| Página de producto      | `http://<domain>/productpage?u=normal`   | HTTP 200, página carga con sección details activa |
-| Ataque XSS              | `http://<domain>?a=<script>...</script>` | HTTP 403, bloqueado por WAF                       |
+| Prueba                  | URL                                      | Resultado esperado                                         |
+| ----------------------- | ---------------------------------------- | ---------------------------------------------------------- |
+| Conectividad Product LB | `http://<domain>/`                       | HTTP 200, UI gráfica con catálogo de libros                |
+| Página de producto      | `http://<domain>/productpage?book=1`     | HTTP 200, portada + metadatos del libro desde Open Library |
+| Ataque XSS              | `http://<domain>?a=<script>...</script>` | HTTP 403, bloqueado por WAF                                |
 
-> **Nota:** `reviews` y `ratings` no están desplegados en este escenario, por lo que la sección de reseñas de la página puede mostrarse vacía o con error. Esto es esperado.
+## Aplicaciones desplegadas
+
+### `productpage` — AWS EKS
+
+App Flask con UI gráfica de 3 columnas, tema oscuro. Consume `details` vía XC.
+
+| Elemento           | Descripción                                                                              |
+| ------------------ | ---------------------------------------------------------------------------------------- |
+| Sidebar            | Catálogo de 5 libros con portadas en miniatura (Open Library Covers API)                 |
+| Panel principal    | Portada grande, título, autor, descripción, subjects, metadatos del libro                |
+| Panel arquitectura | Diagrama del flujo MCN embebido: Cliente → XC LB → EKS → XC interno → AKS → Open Library |
+
+**Catálogo de libros configurado:**
+
+| ID  | Título                 | ISBN          |
+| --- | ---------------------- | ------------- |
+| 1   | The Odyssey            | 9780140449136 |
+| 2   | The Great Gatsby       | 9780743273565 |
+| 3   | To Kill a Mockingbird  | 9780061965548 |
+| 4   | 1984                   | 9780451524935 |
+| 5   | The Catcher in the Rye | 9780316769174 |
+
+### `details` — Azure AKS
+
+App Flask que actúa como API REST. Para cada `GET /details/<book_id>`:
+
+1. Mapea el ID al ISBN correspondiente
+2. Consulta `https://openlibrary.org/api/books?bibkeys=ISBN:...&jscmd=data`
+3. Devuelve JSON con: `title`, `author`, `year`, `pages`, `publisher`, `language`, `description`, `subjects[]`, `cover_large`, `cover_medium`, `openlibrary_url`, `cloud`
+
+```
+GET /details/1
+→ Open Library API (openlibrary.org)
+← { "title": "The Odyssey", "author": "Homer", "pages": 324, ... }
+```
+
+---
 
 ## Arquitectura desplegada por el workflow
 
@@ -297,7 +342,7 @@ Una vez que el workflow haya terminado correctamente, puedes validar manualmente
 http://bookinfo.smcn.f5-cloud-demo.com/productpage
 ```
 
-Debes ver la página de Bookinfo con reseñas y ratings cargados desde distintos microservicios.
+Debes ver la UI gráfica con el catálogo de libros en el sidebar y la portada del libro seleccionado con sus metadatos obtenidos desde Open Library API a través de Azure AKS.
 
 ### 2. Verificar que el WAF bloquea XSS
 
@@ -315,14 +360,25 @@ http://bookinfo.smcn.f5-cloud-demo.com/productpage?id=1' OR '1'='1
 
 También debe ser bloqueado con HTTP 403.
 
+### 4. Navegar por el catálogo
+
+```
+http://bookinfo.smcn.f5-cloud-demo.com/productpage?book=1
+http://bookinfo.smcn.f5-cloud-demo.com/productpage?book=3
+http://bookinfo.smcn.f5-cloud-demo.com/productpage?book=5
+```
+
+Cada ID (`1`-`5`) carga un libro diferente. Los metadatos y portada provienen de Open Library API via `details` en AKS.
+
 ### Interpretación de resultados
 
-| Lo que ves                                 | Significa                   |
-| ------------------------------------------ | --------------------------- |
-| Página carga con estrellas y reseñas       | MCN y LB funcionando ✅     |
-| XSS/SQLi devuelve 403 con Support ID de F5 | WAF activo ✅               |
-| XSS/SQLi devuelve la app normal            | WAF no activo ❌            |
-| Página no carga                            | Problema de conectividad ❌ |
+| Lo que ves                                   | Significa                        |
+| -------------------------------------------- | -------------------------------- |
+| UI gráfica con portada y metadatos del libro | MCN y Open Library OK ✅         |
+| UI carga pero sin portada/metadatos          | `details` en AKS sin alcanzar ❌ |
+| XSS/SQLi devuelve 403 con Support ID de F5   | WAF activo ✅                    |
+| XSS/SQLi devuelve la app normal              | WAF no activo ❌                 |
+| Página no carga                              | Problema de conectividad ❌      |
 
 ### Pruebas desde curl
 
@@ -331,15 +387,23 @@ DOMAIN="bookinfo.smcn.f5-cloud-demo.com"
 XC_NODE_IP="<valor de aws_xc_node_outside_ip del output del job workload>"
 UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 
-# Test de conectividad normal
+# Test de conectividad: debe retornar HTML de la UI gráfica
 curl -s -H "user-agent: $UA" \
   --resolve "$DOMAIN:80:$XC_NODE_IP" \
-  "http://$DOMAIN/productpage?u=normal"
+  "http://$DOMAIN/productpage?book=1" | grep -o "<title>[^<]*"
 
-# Test WAF - debe retornar 403
-curl -s -H "user-agent: $UA" \
+# Test details API directamente via XC LB interno (desde dentro del cluster EKS):
+# GET http://details.<domain>/details/1 → JSON con metadatos de Open Library
+
+# Test WAF XSS - debe retornar 403
+curl -s -o /dev/null -w "%{http_code}" -H "user-agent: $UA" \
   --resolve "$DOMAIN:80:$XC_NODE_IP" \
   "http://$DOMAIN?a=<script>alert('XSS')</script>"
+
+# Test WAF SQLi - debe retornar 403
+curl -s -o /dev/null -w "%{http_code}" -H "user-agent: $UA" \
+  --resolve "$DOMAIN:80:$XC_NODE_IP" \
+  "http://$DOMAIN/productpage?id=1' OR '1'='1"
 ```
 
 > El valor de `aws_xc_node_outside_ip` se imprime en el step **Print output vars** del job `workload` en el log del workflow.
@@ -358,10 +422,11 @@ curl -s -H "user-agent: $UA" \
 
 ## Criterios de éxito
 
-- Todos los jobs de aprovisionamiento terminan en estado `success`.
+- **Todos los jobs de aprovisionamiento** terminan en estado `success`.
 - En `test_waf`:
-  - Respuesta HTTP 200 en endpoints normales de Bookinfo.
-  - Respuesta HTTP 403 en peticiones con payloads de ataque XSS.
+  - HTTP 200 con HTML de la UI gráfica en endpoints normales.
+  - HTTP 403 en peticiones con payloads XSS y SQLi.
+  - La sección de metadatos del libro (título, portada, autor) se muestra correctamente, indicando que `productpage` en EKS pudo contactar `details` en AKS vía XC.
 
 ## Troubleshooting rápido
 
@@ -381,8 +446,11 @@ curl -s -H "user-agent: $UA" \
   - Validar `TF_API_TOKEN`, `TF_CLOUD_ORGANIZATION` y nombres de workspaces.
   - Confirmar que `XC_API_P12_FILE` esté correctamente codificado en base64.
 
-- **App Bookinfo carga pero sin reseñas/ratings:**
-  Indica que la conectividad MCN entre EKS y AKS no está activa. Verificar que los Sites de XC estén en estado `ONLINE` en la consola de F5 XC.
+- **UI carga pero sin portada ni metadatos del libro (`details` no responde):**
+  Indica que `productpage` en EKS no pudo alcanzar `details` en AKS. La UI mostrará un mensaje de error en la sección principal. Verificar:
+  - Que los Sites de XC estén en estado `ONLINE` en la consola de F5 XC.
+  - Que CoreDNS en EKS resuelva `details.<app_domain>` correctamente.
+  - Que el pod `details-v1` en AKS esté en estado `Running` (`kubectl get pods -n <namespace>`).
 
 - **WAF no bloquea ataques:**
   Verificar que los jobs `enable_waf_product` y `enable_waf_details` hayan completado correctamente y que la política WAF esté adjunta a los Load Balancers en la consola XC.
