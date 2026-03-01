@@ -96,6 +96,22 @@ jobs:
       - name: Terraform Destroy
         run: terraform destroy -auto-approve -input=false
 
+      - name: Delete XC Namespace
+        run: |
+          XC_API_BASE=$(echo "${{ secrets.XC_API_URL }}" | sed 's|/api$||')
+          HTTP_CODE=$(curl -s -o /tmp/ns_del_response.json -w "%{http_code}" \
+            --cert-type P12 \
+            --cert api.p12:"${{ secrets.XC_P12_PASSWORD }}" \
+            -X DELETE \
+            "${XC_API_BASE}/api/web/namespaces/${{ vars.XC_NAMESPACE }}")
+          echo "Response code: ${HTTP_CODE}"
+          cat /tmp/ns_del_response.json
+          # 200=deleted, 404=already gone — both are acceptable
+          if [ "${HTTP_CODE}" != "200" ] && [ "${HTTP_CODE}" != "404" ]; then
+            echo "ERROR: Failed to delete namespace (HTTP ${HTTP_CODE})"
+            exit 1
+          fi
+
   terraform_aks:
     name: "Azure AKS"
     runs-on: ubuntu-latest
