@@ -294,7 +294,7 @@ jobs:
             --key /tmp/client.key \
             -X POST \
             -H "Content-Type: application/json" \
-            -d "{\"metadata\":{\"name\":\"${{ vars.XC_NAMESPACE }}\",\"namespace\":\"system\"},\"spec\":{}}" \
+            -d "{\"metadata\":{\"name\":\"${{ vars.XC_NAMESPACE }}\",\"namespace\":\"\"},\"spec\":{}}" \
             "${XC_API_BASE}/api/web/namespaces")
           rm -f /tmp/client.crt /tmp/client.key
           echo "Response code: ${HTTP_CODE}"
