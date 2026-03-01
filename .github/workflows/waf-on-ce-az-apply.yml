@@ -152,12 +152,12 @@ jobs:
           # Variables with hyphens cannot be set via TF_VAR_* env vars,
           # so they are written to a tfvars file.
           cat > github.auto.tfvars <<-EOF
-          nap        = false
-          nic        = false
-          bigip      = false
-          "bigip-cis"   = false
-          "aks-cluster" = true
-          "azure-vm"    = false
+          nap         = false
+          nic         = false
+          bigip       = false
+          bigip-cis   = false
+          aks-cluster = true
+          azure-vm    = false
           EOF
 
       - name: Terraform Init
