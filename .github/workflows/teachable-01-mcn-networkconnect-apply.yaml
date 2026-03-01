@@ -536,10 +536,13 @@ jobs:
           echo "Trying to connect to ubuntu@$SSH_HOST on port $SSH_PORT"
           SSH_OPTS=(-o ConnectTimeout=10 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p "$SSH_PORT" -i "$SSH_KEY_PATH")
 
+          echo "Waiting 60s for XC CE site and VM to initialize before first SSH attempt..."
+          sleep 60
+
           connected="false"
-          for attempt in {1..12}; do
+          for attempt in {1..30}; do
             SSH_VERBOSE_OPTS=()
-            if [[ "$attempt" -eq 12 ]]; then
+            if [[ "$attempt" -eq 30 ]]; then
               SSH_VERBOSE_OPTS=(-vvv)
               echo "Final SSH attempt with verbose diagnostics enabled..."
             fi
@@ -548,8 +551,8 @@ jobs:
               connected="true"
               break
             fi
-            echo "SSH not ready yet (attempt $attempt/12), retrying in 10s..."
-            sleep 10
+            echo "SSH not ready yet (attempt $attempt/30), retrying in 30s..."
+            sleep 30
           done
 
           if [[ "$connected" != "true" ]]; then
@@ -746,10 +749,13 @@ jobs:
           echo "Trying to connect to ubuntu@$SSH_HOST on port $SSH_PORT"
           SSH_OPTS=(-o ConnectTimeout=10 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p "$SSH_PORT" -i "$SSH_KEY_PATH")
 
+          echo "Waiting 60s for XC CE site and VM to initialize before first SSH attempt..."
+          sleep 60
+
           connected="false"
-          for attempt in {1..12}; do
+          for attempt in {1..30}; do
             SSH_VERBOSE_OPTS=()
-            if [[ "$attempt" -eq 12 ]]; then
+            if [[ "$attempt" -eq 30 ]]; then
               SSH_VERBOSE_OPTS=(-vvv)
               echo "Final SSH attempt with verbose diagnostics enabled..."
             fi
@@ -758,8 +764,8 @@ jobs:
               connected="true"
               break
             fi
-            echo "SSH not ready yet (attempt $attempt/12), retrying in 10s..."
-            sleep 10
+            echo "SSH not ready yet (attempt $attempt/30), retrying in 30s..."
+            sleep 30
           done
 
           if [[ "$connected" != "true" ]]; then
