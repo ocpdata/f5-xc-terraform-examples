@@ -3,6 +3,11 @@ variable "tf_cloud_organization" {
   description = "TF cloud org (Value set in TF cloud)"
 }
 
+variable "azure_infra_workspace" {
+  type        = string
+  description = "TFC workspace name for Azure Infra (used to read remote state)"
+}
+
 variable "azure_subscription_id" {
   type    = string
 }

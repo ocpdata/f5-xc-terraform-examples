@@ -384,3 +384,9 @@ variable "vk8s" {
   type        = bool
   default     = false
 }
+
+variable "aks_workspace" {
+  type        = string
+  description = "TFC workspace name for AKS Cluster (used to read remote state)"
+  default     = "aks-cluster"
+}

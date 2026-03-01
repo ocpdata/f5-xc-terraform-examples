@@ -34,6 +34,7 @@ jobs:
     env:
       TF_VAR_tf_cloud_organization: ${{ secrets.TF_CLOUD_ORGANIZATION }}
       TF_VAR_azure: ${{ vars.TF_CLOUD_WORKSPACE_AZURE_INFRA }}
+      TF_VAR_aks_workspace: ${{ vars.TF_CLOUD_WORKSPACE_AKS_CLUSTER }}
       TF_VAR_xc_tenant: ${{ secrets.XC_TENANT }}
       TF_VAR_api_url: ${{ secrets.XC_API_URL }}
       TF_VAR_xc_namespace: ${{ vars.XC_NAMESPACE }}
@@ -105,6 +106,7 @@ jobs:
       TF_VAR_azure_subscription_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
       TF_VAR_azure_service_principal_appid: ${{ secrets.AZURE_CLIENT_ID }}
       TF_VAR_azure_service_principal_password: ${{ secrets.AZURE_CLIENT_SECRET }}
+      TF_VAR_azure_infra_workspace: ${{ vars.TF_CLOUD_WORKSPACE_AZURE_INFRA }}
     defaults:
       run:
         working-directory: ./azure/aks-cluster

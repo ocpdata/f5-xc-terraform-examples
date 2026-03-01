@@ -28,7 +28,7 @@ data "tfe_outputs" "nic" {
 data "tfe_outputs" "aks-cluster" {
   count = var.vk8s ? 0 : (data.tfe_outputs.infra.0.values.aks-cluster ? 1 : 0)
   organization = var.tf_cloud_organization
-  workspace = "aks-cluster"
+  workspace    = var.aks_workspace
 }
 data "tfe_outputs" "azure-vm" {
   count = var.vk8s ? 0 : (data.tfe_outputs.infra.0.values.azure-vm ? 1 : 0)

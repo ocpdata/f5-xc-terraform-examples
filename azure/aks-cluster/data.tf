@@ -1,6 +1,6 @@
 data "tfe_outputs" "azure-infra" {
   organization = var.tf_cloud_organization
-  workspace = "azure-infra"
+  workspace    = var.azure_infra_workspace
 }
 # Fetch AKS created Vnet
 data "azurerm_resources" "vnet" {
