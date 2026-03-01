@@ -282,13 +282,17 @@ jobs:
       - name: Create XC Namespace if not exists
         run: |
           XC_API_BASE=$(echo "${{ secrets.XC_API_URL }}" | sed 's|/api$||')
+          # Extract cert and key from P12 for curl
+          openssl pkcs12 -in api.p12 -passin pass:"${{ secrets.XC_P12_PASSWORD }}" -nokeys -clcerts -out /tmp/client.crt 2>/dev/null
+          openssl pkcs12 -in api.p12 -passin pass:"${{ secrets.XC_P12_PASSWORD }}" -nocerts -nodes -out /tmp/client.key 2>/dev/null
           HTTP_CODE=$(curl -s -o /tmp/ns_response.json -w "%{http_code}" \
-            --cert-type P12 \
-            --cert api.p12:"${{ secrets.XC_P12_PASSWORD }}" \
+            --cert /tmp/client.crt \
+            --key /tmp/client.key \
             -X POST \
             -H "Content-Type: application/json" \
             -d "{\"metadata\":{\"name\":\"${{ vars.XC_NAMESPACE }}\",\"namespace\":\"system\"},\"spec\":{}}" \
             "${XC_API_BASE}/api/web/namespaces")
+          rm -f /tmp/client.crt /tmp/client.key
           echo "Response code: ${HTTP_CODE}"
           cat /tmp/ns_response.json
           # 200=created, 409=already exists — both are acceptable

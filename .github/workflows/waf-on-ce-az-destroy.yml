@@ -99,11 +99,15 @@ jobs:
       - name: Delete XC Namespace
         run: |
           XC_API_BASE=$(echo "${{ secrets.XC_API_URL }}" | sed 's|/api$||')
+          # Extract cert and key from P12 for curl
+          openssl pkcs12 -in api.p12 -passin pass:"${{ secrets.XC_P12_PASSWORD }}" -nokeys -clcerts -out /tmp/client.crt 2>/dev/null
+          openssl pkcs12 -in api.p12 -passin pass:"${{ secrets.XC_P12_PASSWORD }}" -nocerts -nodes -out /tmp/client.key 2>/dev/null
           HTTP_CODE=$(curl -s -o /tmp/ns_del_response.json -w "%{http_code}" \
-            --cert-type P12 \
-            --cert api.p12:"${{ secrets.XC_P12_PASSWORD }}" \
+            --cert /tmp/client.crt \
+            --key /tmp/client.key \
             -X DELETE \
             "${XC_API_BASE}/api/web/namespaces/${{ vars.XC_NAMESPACE }}")
+          rm -f /tmp/client.crt /tmp/client.key
           echo "Response code: ${HTTP_CODE}"
           cat /tmp/ns_del_response.json
           # 200=deleted, 404=already gone — both are acceptable
