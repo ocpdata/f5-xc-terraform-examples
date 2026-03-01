@@ -73,5 +73,8 @@ resource "time_sleep" "wait_30_seconds" {
   count           = var.use_new_vnet ? 1 : 0
   depends_on      = [null_resource.deploy-yaml, azurerm_virtual_network_peering.peer_b2a]
   create_duration = "90s"
-  update_duration = "90s"
+
+  lifecycle {
+    replace_triggered_by = [null_resource.deploy-yaml]
+  }
 }
