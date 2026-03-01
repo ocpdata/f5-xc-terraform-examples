@@ -107,6 +107,7 @@ jobs:
       TF_VAR_azure_service_principal_appid: ${{ secrets.AZURE_CLIENT_ID }}
       TF_VAR_azure_service_principal_password: ${{ secrets.AZURE_CLIENT_SECRET }}
       TF_VAR_azure_infra_workspace: ${{ vars.TF_CLOUD_WORKSPACE_AZURE_INFRA }}
+      TF_VAR_use_new_vnet: "true"
     defaults:
       run:
         working-directory: ./azure/aks-cluster
