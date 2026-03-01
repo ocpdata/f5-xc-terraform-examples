@@ -57,6 +57,7 @@ resource "null_resource" "deploy-yaml" {
   depends_on = [local_file.kubeconfig]
   triggers = {
     manifest_hash = filemd5("${path.module}/manifest.yaml")
+    cluster_id    = azurerm_kubernetes_cluster.ce_waap.id
   }
   provisioner "local-exec" {
     command = "curl -LO https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl && chmod +x kubectl"
