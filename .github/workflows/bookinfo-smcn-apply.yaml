@@ -460,6 +460,17 @@ jobs:
         id: validate
         run: terraform validate -no-color
 
+      - name: Import existing AKS cluster if present
+        run: |
+          CLUSTER_NAME="${TF_VAR_prefix:+${TF_VAR_prefix}-}${TF_VAR_name}-aks-cluster"
+          RESOURCE_ID="/subscriptions/${ARM_SUBSCRIPTION_ID}/resourceGroups/${TF_VAR_azure_rg_name}/providers/Microsoft.ContainerService/managedClusters/${CLUSTER_NAME}"
+          if ! terraform state list | grep -q "azurerm_kubernetes_cluster.aks-cluster"; then
+            echo "Resource not in state. Attempting import of: $RESOURCE_ID"
+            terraform import azurerm_kubernetes_cluster.aks-cluster "$RESOURCE_ID" || echo "Import returned non-zero (resource may not exist in Azure), continuing..."
+          else
+            echo "Resource already in state, skipping import."
+          fi
+
       - name: Grant User Access Administrator to Terraform SP
         run: |
           az login --service-principal \
