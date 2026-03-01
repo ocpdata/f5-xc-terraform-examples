@@ -6,7 +6,6 @@ name: "F5XC WAF on CE Deploy"
 #
 # Required GitHub Secrets:
 #   TF_API_TOKEN                      - Terraform Cloud API token
-#   TF_CLOUD_ORGANIZATION             - Terraform Cloud organization name
 #   AZURE_SUBSCRIPTION_ID             - Azure Subscription ID (secret)
 #   AZURE_TENANT_ID                   - Azure Tenant ID (secret)
 #   AZURE_CLIENT_ID                   - Azure Service Principal App ID (secret)
@@ -18,6 +17,7 @@ name: "F5XC WAF on CE Deploy"
 #   XC_API_P12_FILE                   - F5 XC API certificate (.p12) in base64 (secret)
 #
 # Required GitHub Variables (Settings -> Secrets and variables -> Variables):
+#   TF_CLOUD_ORGANIZATION             - Terraform Cloud organization name
 #   TF_CLOUD_WORKSPACE_AZURE_INFRA    - TFC workspace name for Azure Infra
 #   TF_CLOUD_WORKSPACE_AKS_CLUSTER    - TFC workspace name for AKS Cluster
 #   TF_CLOUD_WORKSPACE_XC_DEPLOY      - TFC workspace name for F5 XC
@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
-      TF_ORG: ${{ secrets.TF_CLOUD_ORGANIZATION }}
+      TF_ORG: ${{ vars.TF_CLOUD_ORGANIZATION }}
       WS_AZURE_INFRA: ${{ vars.TF_CLOUD_WORKSPACE_AZURE_INFRA }}
       WS_AKS_CLUSTER: ${{ vars.TF_CLOUD_WORKSPACE_AKS_CLUSTER }}
       WS_XC_DEPLOY: ${{ vars.TF_CLOUD_WORKSPACE_XC_DEPLOY }}
@@ -142,7 +142,7 @@ jobs:
           cat > backend.tf <<-EOF
           terraform {
             cloud {
-              organization = "${{ secrets.TF_CLOUD_ORGANIZATION }}"
+              organization = "${{ vars.TF_CLOUD_ORGANIZATION }}"
               workspaces {
                 name = "${{ vars.TF_CLOUD_WORKSPACE_AZURE_INFRA }}"
               }
@@ -185,7 +185,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: terraform_infra
     env:
-      TF_VAR_tf_cloud_organization: ${{ secrets.TF_CLOUD_ORGANIZATION }}
+      TF_VAR_tf_cloud_organization: ${{ vars.TF_CLOUD_ORGANIZATION }}
       TF_VAR_azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       TF_VAR_azure_subscription_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
       TF_VAR_azure_service_principal_appid: ${{ secrets.AZURE_CLIENT_ID }}
@@ -210,7 +210,7 @@ jobs:
           cat > backend.tf <<-EOF
           terraform {
             cloud {
-              organization = "${{ secrets.TF_CLOUD_ORGANIZATION }}"
+              organization = "${{ vars.TF_CLOUD_ORGANIZATION }}"
               workspaces {
                 name = "${{ vars.TF_CLOUD_WORKSPACE_AKS_CLUSTER }}"
               }
@@ -243,7 +243,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: terraform_aks
     env:
-      TF_VAR_tf_cloud_organization: ${{ secrets.TF_CLOUD_ORGANIZATION }}
+      TF_VAR_tf_cloud_organization: ${{ vars.TF_CLOUD_ORGANIZATION }}
       TF_VAR_azure: ${{ vars.TF_CLOUD_WORKSPACE_AZURE_INFRA }}
       TF_VAR_aks_workspace: ${{ vars.TF_CLOUD_WORKSPACE_AKS_CLUSTER }}
       TF_VAR_xc_tenant: ${{ secrets.XC_TENANT }}
@@ -270,7 +270,7 @@ jobs:
           cat > backend.tf <<-EOF
           terraform {
             cloud {
-              organization = "${{ secrets.TF_CLOUD_ORGANIZATION }}"
+              organization = "${{ vars.TF_CLOUD_ORGANIZATION }}"
               workspaces {
                 name = "${{ vars.TF_CLOUD_WORKSPACE_XC_DEPLOY }}"
               }
