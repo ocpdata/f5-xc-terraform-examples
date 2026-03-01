@@ -102,7 +102,7 @@ resource "volterra_http_loadbalancer" "lb_https" {
   name                   = format("%s-xclb-%s", local.project_prefix, local.build_suffix)
   namespace              = var.xc_namespace
   labels                 = {
-      "ves.io/app_type"  = length(var.xc_app_type) != 0 ? volterra_app_type.app-type[0].name : null
+      "ves.io/app_type"  = var.xc_app_type != null && length(var.xc_app_type) != 0 ? volterra_app_type.app-type[0].name : null
   }
   description            = format("HTTP loadbalancer object for %s origin server", local.project_prefix)
   domains                = [var.app_domain]
@@ -427,7 +427,7 @@ resource "volterra_http_loadbalancer" "lb_https" {
 
   disable_rate_limit              = true
   enable_malicious_user_detection = var.xc_mud ? true : null
-  no_challenge = contains(var.xc_app_type, "mud") || var.xc_mud ? false : true
+  no_challenge = (var.xc_app_type != null && contains(var.xc_app_type, "mud")) || var.xc_mud ? false : true
 
   dynamic "policy_based_challenge" {
     for_each = var.xc_mud ? [1] : []
@@ -440,7 +440,7 @@ resource "volterra_http_loadbalancer" "lb_https" {
     }
   }
   dynamic "policy_based_challenge" {
-    for_each = contains(var.xc_app_type, "mud") && var.xc_multi_lb ? [1] : []
+    for_each = var.xc_app_type != null && contains(var.xc_app_type, "mud") && var.xc_multi_lb ? [1] : []
     content {
       malicious_user_mitigation {
         namespace = volterra_malicious_user_mitigation.mud-mitigation[0].namespace
