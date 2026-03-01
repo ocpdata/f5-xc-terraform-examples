@@ -40,6 +40,8 @@ on:
       AZURE_TENANT_ID:
       AZURE_CLIENT_ID:
       AZURE_CLIENT_SECRET:
+      AZURE_OWNER_CLIENT_ID:
+      AZURE_OWNER_CLIENT_SECRET:
       XC_AWS_CLOUD_CREDENTIALS_NAME:
       XC_AZURE_CLOUD_CREDENTIALS_NAME:
 
@@ -456,6 +458,20 @@ jobs:
       - name: Terraform Validate
         id: validate
         run: terraform validate -no-color
+
+      - name: Grant User Access Administrator to Terraform SP
+        run: |
+          az login --service-principal \
+            --username "${{ secrets.AZURE_OWNER_CLIENT_ID }}" \
+            --password "${{ secrets.AZURE_OWNER_CLIENT_SECRET }}" \
+            --tenant "${{ secrets.AZURE_TENANT_ID }}"
+          SCOPE="/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/secure-mcn"
+          az role assignment create \
+            --assignee "${{ secrets.AZURE_CLIENT_ID }}" \
+            --role "User Access Administrator" \
+            --scope "$SCOPE" \
+            --only-show-errors || echo "Role assignment already exists or skipped"
+          az logout
 
       - name: Terraform Apply
         run: terraform apply -no-color -auto-approve -input=false
