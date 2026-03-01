@@ -282,9 +282,13 @@ jobs:
       - name: Create XC Namespace if not exists
         run: |
           XC_API_BASE=$(echo "${{ secrets.XC_API_URL }}" | sed 's|/api$||')
-          # Extract cert and key from P12 for curl
-          openssl pkcs12 -in api.p12 -passin pass:"${{ secrets.XC_P12_PASSWORD }}" -nokeys -clcerts -out /tmp/client.crt 2>/dev/null
-          openssl pkcs12 -in api.p12 -passin pass:"${{ secrets.XC_P12_PASSWORD }}" -nocerts -nodes -out /tmp/client.key 2>/dev/null
+          # Extract cert and key from P12 for curl (use -legacy for OpenSSL 3.x compatibility)
+          openssl pkcs12 -legacy -in api.p12 -passin pass:"${{ secrets.XC_P12_PASSWORD }}" -nokeys -clcerts -out /tmp/client.crt
+          openssl pkcs12 -legacy -in api.p12 -passin pass:"${{ secrets.XC_P12_PASSWORD }}" -nocerts -nodes -out /tmp/client.key
+          if [ ! -s /tmp/client.crt ] || [ ! -s /tmp/client.key ]; then
+            echo "ERROR: Failed to extract cert/key from P12"
+            exit 1
+          fi
           HTTP_CODE=$(curl -s -o /tmp/ns_response.json -w "%{http_code}" \
             --cert /tmp/client.crt \
             --key /tmp/client.key \
