@@ -71,7 +71,7 @@ resource "null_resource" "deploy-yaml" {
 # Wait period while a load balancer gets created and fetch an IP address
 resource "time_sleep" "wait_30_seconds" {
   count           = var.use_new_vnet ? 1 : 0
-  depends_on      = [null_resource.deploy-yaml, azurerm_virtual_network_peering.peer_b2a]
+  depends_on      = [null_resource.deploy-yaml, azurerm_virtual_network_peering.peer_b2a, azurerm_kubernetes_cluster.ce_waap]
   create_duration = "90s"
 
   lifecycle {
