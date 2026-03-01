@@ -250,6 +250,13 @@ jobs:
       TF_VAR_api_url: ${{ secrets.XC_API_URL }}
       TF_VAR_xc_namespace: ${{ vars.XC_NAMESPACE }}
       TF_VAR_app_domain: ${{ vars.APP_DOMAIN }}
+      TF_VAR_az_ce_site: "true"
+      TF_VAR_advertise_sites: "true"
+      TF_VAR_ip_address_on_site_pool: "true"
+      TF_VAR_azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_azure_subscription_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+      TF_VAR_azure_service_principal_appid: ${{ secrets.AZURE_CLIENT_ID }}
+      TF_VAR_azure_service_principal_password: ${{ secrets.AZURE_CLIENT_SECRET }}
       VOLT_API_P12_FILE: ${{ github.workspace }}/xc/api.p12
       VES_P12_PASSWORD: ${{ secrets.XC_P12_PASSWORD }}
     defaults:

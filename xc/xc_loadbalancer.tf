@@ -106,7 +106,7 @@ resource "volterra_http_loadbalancer" "lb_https" {
   }
   description            = format("HTTP loadbalancer object for %s origin server", local.project_prefix)
   domains                = [var.app_domain]
-  advertise_on_public_default_vip = true
+  advertise_on_public_default_vip = var.advertise_sites == "true" ? false : true
 
   dynamic "advertise_custom" {
     for_each = var.advertise_sites ? [1] : []
