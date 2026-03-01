@@ -7,8 +7,9 @@ resource "azurerm_kubernetes_cluster" "aks-cluster" {
 
   network_profile {
     network_plugin = "azure"
-    // UDR for custom route table entries to access internal remote sites and outbound NAT
-    outbound_type = "userDefinedRouting"
+    // loadBalancer provides outbound internet NAT via Azure Load Balancer;
+    // UDR subnet routes still govern internal XC CE traffic.
+    outbound_type = "loadBalancer"
   }
   default_node_pool {
     name       = "default"
