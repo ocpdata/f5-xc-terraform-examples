@@ -54,20 +54,24 @@ resource "local_file" "kubeconfig" {
 
 # Deploy application using yaml
 resource "null_resource" "deploy-yaml" {
-  depends_on  = [local_file.kubeconfig]
+  depends_on = [local_file.kubeconfig]
+  triggers = {
+    manifest_hash = filemd5("${path.module}/manifest.yaml")
+  }
   provisioner "local-exec" {
     command = "curl -LO https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl && chmod +x kubectl"
   }
   provisioner "local-exec" {
-      command = "./kubectl apply -f manifest.yaml"
-      environment = {
-      		KUBECONFIG = "./kubeconfig"
+    command = "./kubectl apply -f manifest.yaml"
+    environment = {
+      KUBECONFIG = "./kubeconfig"
     }
   }
 }
 # Wait period while a load balancer gets created and fetch an IP address
 resource "time_sleep" "wait_30_seconds" {
-  count = var.use_new_vnet ? 1 : 0
+  count           = var.use_new_vnet ? 1 : 0
   depends_on      = [null_resource.deploy-yaml, azurerm_virtual_network_peering.peer_b2a]
   create_duration = "90s"
+  update_duration = "90s"
 }
