@@ -2,6 +2,11 @@ name: "F5 XC Bot Defense on RE Deploy"
 
 on:
   workflow_dispatch:
+    inputs:
+      origin_server:
+        description: "Backend origin hostname or IP (e.g. 10.0.0.5 or app.example.com)"
+        required: true
+        type: string
 
 jobs:
   terraform_xc_lb:
@@ -21,7 +26,7 @@ jobs:
       # ── Bot Defense (fixed values for this workflow) ─────────────────────────
       TF_VAR_xc_bot_def: "true"
       TF_VAR_vk8s: "true" # Terraform coerces string "true" to bool
-      TF_VAR_serviceName: ${{ vars.ORIGIN_SERVER }}
+      TF_VAR_serviceName: ${{ github.event.inputs.origin_server }}
       TF_VAR_xc_app_type: "[]" # null causes length()/contains() to fail
       TF_VAR_xc_mud: "false"
       TF_VAR_xc_waf: "false"
@@ -118,8 +123,7 @@ jobs:
       - name: Validate required variables
         run: |
           if [ -z "$TF_VAR_serviceName" ]; then
-            echo "ERROR: vars.ORIGIN_SERVER is not set in GitHub repository variables."
-            echo "Go to Settings → Variables → Actions and add ORIGIN_SERVER with the backend hostname or IP."
+            echo "ERROR: origin_server input is empty."
             exit 1
           fi
           echo "ORIGIN_SERVER = $TF_VAR_serviceName"
