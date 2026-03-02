@@ -21,6 +21,10 @@ jobs:
       # ── Bot Defense (fixed values for this workflow) ─────────────────────────
       TF_VAR_xc_bot_def: "true"
       TF_VAR_vk8s: "true" # Terraform coerces string "true" to bool
+      TF_VAR_serviceName: ${{ vars.ORIGIN_SERVER }}
+      # ── Volterra Provider Auth ────────────────────────────────────────────────
+      VES_P12_CONTENT: ${{ secrets.XC_API_P12_FILE }}
+      VES_P12_PASSWORD: ${{ secrets.XC_P12_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -99,7 +103,6 @@ jobs:
           }
           TFEOF
           echo "${{ secrets.XC_API_P12_FILE }}" | base64 -d > api.p12
-          echo "VES_P12_FILE=$(pwd)/api.p12" >> "$GITHUB_ENV"
 
       - name: Terraform Init
         id: init
