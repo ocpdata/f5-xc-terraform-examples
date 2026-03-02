@@ -107,7 +107,7 @@ jobs:
           TF_VAR_azure_subscription_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
           TF_VAR_azure_service_principal_appid: ${{ secrets.AZURE_CLIENT_ID }}
           TF_VAR_azure_service_principal_password: ${{ secrets.AZURE_CLIENT_SECRET }}
-          TF_VAR_vm_size: ${{ vars.AZURE_VM_SIZE }}
+          TF_VAR_vm_size: ${{ vars.AZURE_XC_MACHINE_TYPE || 'Standard_D2s_v3' }}
         run: terraform apply -auto-approve -input=false
 
       - name: Get VM IP
