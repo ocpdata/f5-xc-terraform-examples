@@ -69,12 +69,12 @@ resource "azurerm_linux_virtual_machine" "vm_inst" {
 }
 
 resource "azurerm_public_ip" "puip" {
-  count = local.vm_public_ip ? 1 : 0
+  count               = local.vm_public_ip ? 1 : 0
   name                = "waf-public-ip"
   location            = local.azure_region
   resource_group_name = local.resource_group_name
-  sku                 = "Basic"
-  allocation_method   = "Dynamic"
+  sku                 = "Standard"
+  allocation_method   = "Static"
 }
 
 resource "azurerm_network_interface" "public" {
