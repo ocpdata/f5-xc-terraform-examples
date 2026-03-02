@@ -115,6 +115,15 @@ jobs:
         id: validate
         run: terraform validate -no-color
 
+      - name: Validate required variables
+        run: |
+          if [ -z "$TF_VAR_serviceName" ]; then
+            echo "ERROR: vars.ORIGIN_SERVER is not set in GitHub repository variables."
+            echo "Go to Settings → Variables → Actions and add ORIGIN_SERVER with the backend hostname or IP."
+            exit 1
+          fi
+          echo "ORIGIN_SERVER = $TF_VAR_serviceName"
+
       - name: Copy App Manifest
         run: cp ../shared/airline-app/airflask.yaml .
 
