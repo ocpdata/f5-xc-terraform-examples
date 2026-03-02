@@ -43,7 +43,7 @@ resource "azurerm_linux_virtual_machine" "vm_inst" {
   name                = "waf-re-vm"
   resource_group_name = local.resource_group_name
   location            = local.azure_region
-  size                = "Standard_F2"
+  size                = var.vm_size
   admin_username      = "Demouser"
   admin_password      = "Demouser1234"
   disable_password_authentication = false

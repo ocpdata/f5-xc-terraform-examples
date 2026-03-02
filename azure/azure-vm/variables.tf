@@ -3,6 +3,12 @@ variable "tf_cloud_organization" {
   description = "TF cloud org (Value set in TF cloud)"
 }
 
+variable "vm_size" {
+  type        = string
+  description = "Azure VM size for the WAF instance"
+  default     = "Standard_D2s_v3"
+}
+
 variable "azure_subscription_id" {
   description = "Azure Subscription ID"
   type        = string
