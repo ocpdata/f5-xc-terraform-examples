@@ -88,6 +88,18 @@ jobs:
       - name: Terraform Init
         run: terraform init
 
+      - name: Accept Azure Marketplace terms for NGINX image
+        run: |
+          az login --service-principal \
+            --username "${{ secrets.AZURE_CLIENT_ID }}" \
+            --password "${{ secrets.AZURE_CLIENT_SECRET }}" \
+            --tenant  "${{ secrets.AZURE_TENANT_ID }}"
+          az account set --subscription "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+          az vm image terms accept \
+            --publisher nginxinc \
+            --offer     nginx_plus_with_nginx_app_protect_premium \
+            --plan      nginx_plus_with_nginx_app_protect_prem_ubuntu2004
+
       - name: Terraform Apply
         env:
           TF_VAR_tf_cloud_organization: ${{ secrets.TF_CLOUD_ORGANIZATION }}
