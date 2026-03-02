@@ -2,16 +2,62 @@ name: "F5 XC Bot Defense on RE Deploy"
 
 on:
   workflow_dispatch:
-    inputs:
-      origin_server:
-        description: "Backend origin hostname or IP (e.g. 10.0.0.5 or app.example.com)"
-        required: true
-        type: string
 
 jobs:
+  azure_vm:
+    name: "Deploy Azure VM (Origin)"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./azure/azure-vm
+    outputs:
+      vm_ip: ${{ steps.get_ip.outputs.vm_ip }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+          terraform_wrapper: false
+
+      - name: Setup Terraform Backend
+        run: |
+          cat > backend.tf << 'TFEOF'
+          terraform {
+            cloud {
+              organization = "${{ secrets.TF_CLOUD_ORGANIZATION }}"
+              workspaces {
+                name = "${{ vars.TF_CLOUD_WORKSPACE_AZURE_VM }}"
+              }
+            }
+          }
+          TFEOF
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Apply
+        env:
+          TF_VAR_tf_cloud_organization: ${{ secrets.TF_CLOUD_ORGANIZATION }}
+          TF_VAR_azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          TF_VAR_azure_subscription_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+          TF_VAR_azure_service_principal_appid: ${{ secrets.AZURE_CLIENT_ID }}
+          TF_VAR_azure_service_principal_password: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: terraform apply -auto-approve -input=false
+
+      - name: Get VM IP
+        id: get_ip
+        run: |
+          vm_ip=$(terraform output -raw vm_ip)
+          echo "vm_ip=${vm_ip}" >> "$GITHUB_OUTPUT"
+          echo "Azure VM IP: ${vm_ip}"
+
   terraform_xc_lb:
     name: "Deploy F5 XC Bot Defense"
     runs-on: ubuntu-latest
+    needs: [azure_vm]
     defaults:
       run:
         working-directory: ./xc
@@ -26,7 +72,7 @@ jobs:
       # ── Bot Defense (fixed values for this workflow) ─────────────────────────
       TF_VAR_xc_bot_def: "true"
       TF_VAR_vk8s: "true" # Terraform coerces string "true" to bool
-      TF_VAR_serviceName: ${{ github.event.inputs.origin_server }}
+      TF_VAR_serviceName: ${{ needs.azure_vm.outputs.vm_ip }}
       TF_VAR_xc_app_type: "[]" # null causes length()/contains() to fail
       TF_VAR_xc_mud: "false"
       TF_VAR_xc_waf: "false"
@@ -119,14 +165,6 @@ jobs:
       - name: Terraform Validate
         id: validate
         run: terraform validate -no-color
-
-      - name: Validate required variables
-        run: |
-          if [ -z "$TF_VAR_serviceName" ]; then
-            echo "ERROR: origin_server input is empty."
-            exit 1
-          fi
-          echo "ORIGIN_SERVER = $TF_VAR_serviceName"
 
       - name: Copy App Manifest
         run: cp ../shared/airline-app/airflask.yaml .
