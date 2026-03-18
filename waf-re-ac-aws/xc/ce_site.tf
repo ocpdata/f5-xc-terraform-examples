@@ -48,7 +48,7 @@ resource "null_resource" "wait_for_ce_validation" {
   depends_on = [volterra_aws_vpc_site.ce]
 
   provisioner "local-exec" {
-    command = "${path.module}/check_ce_status.sh ${var.api_url}/api/register/namespaces/system/site/${volterra_aws_vpc_site.ce.name} ${path.module}/api.p12 '' 600 cert ${var.xc_p12_password}"
+    command = "${path.module}/check_ce_status.sh ${var.api_url}/api/register/namespaces/system/site/${volterra_aws_vpc_site.ce.name} ${path.module}/api.p12 '' 600 cert $VES_P12_PASSWORD"
   }
 }
 
