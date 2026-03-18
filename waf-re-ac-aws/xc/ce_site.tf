@@ -48,7 +48,7 @@ resource "null_resource" "wait_for_ce_validation" {
   depends_on = [volterra_aws_vpc_site.ce]
 
   provisioner "local-exec" {
-    command = "sleep 70"
+    command = "sleep 300"
   }
 }
 
