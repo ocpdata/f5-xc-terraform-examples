@@ -7,7 +7,7 @@ resource "volterra_origin_pool" "op" {
   origin_servers {
     private_ip {
       ip             = local.origin_ip
-      inside_network = true
+      inside_network = false
       site_locator {
         site {
           name      = volterra_aws_vpc_site.ce.name
