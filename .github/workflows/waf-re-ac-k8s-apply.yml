@@ -1,231 +1,271 @@
 name: "F5XC WAF on RE + AppConnect Deploy"
 
 on:
-  push:
-    branches:
-      - deploy-waf-re-ac-k8s
-  pull_request:
+  workflow_dispatch:
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GitHub Secrets required:
+#   TF_API_TOKEN          – Terraform Cloud API token (backend auth)
+#   TF_CLOUD_ORGANIZATION – Terraform Cloud organization name
+#   AZURE_SUBSCRIPTION_ID
+#   AZURE_TENANT_ID
+#   AZURE_CLIENT_ID
+#   AZURE_CLIENT_SECRET
+#   SSH_PRIVATE_KEY       – SSH private key; public key is derived automatically
+#   XC_API_P12_FILE       – Base64-encoded F5 XC API P12 certificate
+#   XC_P12_PASSWORD       – Password for the P12 certificate
+#   XC_API_URL            – e.g. https://<tenant>.console.ves.volterra.io/api
+#   XC_TENANT             – F5 XC tenant name
+#
+# GitHub Variables (non-sensitive):
+#   TF_CLOUD_WORKSPACE_AZURE_INFRA   – TF Cloud workspace name for azure-infra
+#   TF_CLOUD_WORKSPACE_AKS_CLUSTER   – TF Cloud workspace name for aks-cluster
+#   TF_CLOUD_WORKSPACE_XC            – TF Cloud workspace name for xc
+#   AZURE_REGION          – e.g. eastus
+#   PROJECT_PREFIX        – e.g. myproject
+#   XC_NAMESPACE          – existing XC namespace
+#   APP_DOMAIN            – FQDN for the LB (e.g. app.example.com)
+#   XC_WAF_BLOCKING       – true | false (default true)
+# ─────────────────────────────────────────────────────────────────────────────
 
 jobs:
 
   terraform_infra:
     name: "Azure Infra"
     runs-on: ubuntu-latest
+    outputs:
+      azure_region:        ${{ steps.tf_outputs.outputs.azure_region }}
+      resource_group_name: ${{ steps.tf_outputs.outputs.resource_group_name }}
+      vnet_name:           ${{ steps.tf_outputs.outputs.vnet_name }}
+      subnet_name:         ${{ steps.tf_outputs.outputs.subnet_name }}
+      subnet_id:           ${{ steps.tf_outputs.outputs.subnet_id }}
+      project_prefix:      ${{ steps.tf_outputs.outputs.project_prefix }}
+      build_suffix:        ${{ steps.tf_outputs.outputs.build_suffix }}
+      vnet_id:             ${{ steps.tf_outputs.outputs.vnet_id }}
     defaults:
       run:
-        working-directory: ./azure/azure-infra
+        working-directory: ./waf-re-ac-k8s-azu/azure-infra
+    env:
+      TF_VAR_azure_subscription_id:             ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_azure_subscription_tenant_id:      ${{ secrets.AZURE_TENANT_ID }}
+      TF_VAR_azure_service_principal_appid:     ${{ secrets.AZURE_CLIENT_ID }}
+      TF_VAR_azure_service_principal_password:  ${{ secrets.AZURE_CLIENT_SECRET }}
+      TF_VAR_azure_region:                      ${{ vars.AZURE_REGION }}
+      TF_VAR_project_prefix:                    ${{ vars.PROJECT_PREFIX }}
+      TF_VAR_nap:         "false"
+      TF_VAR_nic:         "false"
+      TF_VAR_bigip:       "false"
+      TF_VAR_bigip-cis:   "false"
+      TF_VAR_aks-cluster: "true"
+      TF_VAR_azure-vm:    "false"
     steps:
-      - name: Checkout    
+      - name: Checkout
         uses: actions/checkout@v4
-      
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+          terraform_wrapper: false
 
       - name: Setup Terraform Backend
-        id: backend
         run: |
           cat > backend.tf << EOF
           terraform {
             cloud {
               organization = "${{ secrets.TF_CLOUD_ORGANIZATION }}"
               workspaces {
-                name = "${{ secrets.TF_CLOUD_WORKSPACE_AZURE_INFRA }}"
+                name = "${{ vars.TF_CLOUD_WORKSPACE_AZURE_INFRA }}"
               }
             }
           }
           EOF
-          
+
       - name: Terraform Init
         id: init
         run: terraform init
-      
+
       - name: Terraform Validate
         id: validate
         run: terraform validate -no-color
 
-      - name: Terraform Plan
-        id: plan
-        if: github.event_name == 'pull_request'
-        run: terraform plan -no-color -input=false
-        continue-on-error: true
-
-      - uses: actions/github-script@v6
-        if: github.event_name == 'pull_request'
-        env:
-          PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const output = `#### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
-            #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
-            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
-            <details><summary>Show Plan</summary>
-            \`\`\`\n
-            ${process.env.PLAN}
-            \`\`\`
-            </details>
-            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: output
-            })
-      - name: Terraform Plan Status
-        if: steps.plan.outcome == 'failure'
-        run: exit 1
-
       - name: Terraform Apply
-        if: github.ref == 'refs/heads/deploy-waf-re-ac-k8s' && github.event_name == 'push'
         run: terraform apply -auto-approve -input=false
-          
+
+      - name: Capture Terraform Outputs
+        id: tf_outputs
+        run: |
+          echo "azure_region=$(terraform output -raw azure_region)" >> $GITHUB_OUTPUT
+          echo "resource_group_name=$(terraform output -raw resource_group_name)" >> $GITHUB_OUTPUT
+          echo "vnet_name=$(terraform output -raw vnet_name)" >> $GITHUB_OUTPUT
+          echo "subnet_name=$(terraform output -raw subnet_name)" >> $GITHUB_OUTPUT
+          echo "subnet_id=$(terraform output -raw subnet_id)" >> $GITHUB_OUTPUT
+          echo "project_prefix=$(terraform output -raw project_prefix)" >> $GITHUB_OUTPUT
+          echo "build_suffix=$(terraform output -raw build_suffix)" >> $GITHUB_OUTPUT
+          echo "vnet_id=$(terraform output -raw vnet_id)" >> $GITHUB_OUTPUT
+
+
   terraform_aks:
     name: "Azure AKS"
     runs-on: ubuntu-latest
     needs: terraform_infra
+    outputs:
+      kube_config_b64: ${{ steps.tf_outputs.outputs.kube_config_b64 }}
     defaults:
       run:
-        working-directory: ./azure/aks-cluster
+        working-directory: ./waf-re-ac-k8s-azu/aks-cluster
+    env:
+      TF_VAR_azure_subscription_id:             ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_azure_subscription_tenant_id:      ${{ secrets.AZURE_TENANT_ID }}
+      TF_VAR_azure_service_principal_appid:     ${{ secrets.AZURE_CLIENT_ID }}
+      TF_VAR_azure_service_principal_password:  ${{ secrets.AZURE_CLIENT_SECRET }}
+      TF_VAR_azure_region:        ${{ needs.terraform_infra.outputs.azure_region }}
+      TF_VAR_resource_group_name: ${{ needs.terraform_infra.outputs.resource_group_name }}
+      TF_VAR_vnet_name:           ${{ needs.terraform_infra.outputs.vnet_name }}
+      TF_VAR_subnet_name:         ${{ needs.terraform_infra.outputs.subnet_name }}
+      TF_VAR_subnet_id:           ${{ needs.terraform_infra.outputs.subnet_id }}
+      TF_VAR_project_prefix:      ${{ needs.terraform_infra.outputs.project_prefix }}
+      TF_VAR_build_suffix:        ${{ needs.terraform_infra.outputs.build_suffix }}
+      TF_VAR_vnet_id:             ${{ needs.terraform_infra.outputs.vnet_id }}
+      TF_VAR_use_new_vnet:        "false"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+          terraform_wrapper: false
 
       - name: Setup Terraform Backend
-        id: backend
         run: |
           cat > backend.tf << EOF
           terraform {
             cloud {
               organization = "${{ secrets.TF_CLOUD_ORGANIZATION }}"
               workspaces {
-                name = "${{ secrets.TF_CLOUD_WORKSPACE_AKS_CLUSTER }}"
+                name = "${{ vars.TF_CLOUD_WORKSPACE_AKS_CLUSTER }}"
               }
             }
           }
           EOF
-          
+
       - name: Terraform Init
         id: init
         run: terraform init
-      
+
       - name: Terraform Validate
         id: validate
         run: terraform validate -no-color
 
-      - name: Terraform Plan
-        id: plan
-        if: github.event_name == 'pull_request'
-        run: terraform plan -no-color -input=false
-        continue-on-error: true
-
-      - uses: actions/github-script@v6
-        if: github.event_name == 'pull_request'
-        env:
-          PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const output = `#### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
-            #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
-            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
-            <details><summary>Show Plan</summary>
-            \`\`\`\n
-            ${process.env.PLAN}
-            \`\`\`
-            </details>
-            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: output
-            })
-      - name: Terraform Plan Status
-        if: steps.plan.outcome == 'failure'
-        run: exit 1
-
       - name: Terraform Apply
-        if: github.ref == 'refs/heads/deploy-waf-re-ac-k8s' && github.event_name == 'push'
         run: terraform apply -auto-approve -input=false
-  
+
+      - name: Capture Terraform Outputs
+        id: tf_outputs
+        run: |
+          # Base64-encode kubeconfig for safe multi-line transfer between jobs
+          KUBE_CONFIG=$(terraform output -raw kube_config)
+          echo "::add-mask::$KUBE_CONFIG"
+          KUBE_CONFIG_B64=$(printf '%s' "$KUBE_CONFIG" | base64 -w 0)
+          echo "kube_config_b64=$KUBE_CONFIG_B64" >> $GITHUB_OUTPUT
+
+
   terraform_xc_lb:
     name: "F5XC WAF"
     runs-on: ubuntu-latest
-    needs: terraform_aks
+    needs: [terraform_infra, terraform_aks]
     defaults:
       run:
-        working-directory: ./xc
+        working-directory: ./waf-re-ac-k8s-azu/xc
+    env:
+      # Infra values from azure-infra job
+      TF_VAR_project_prefix:      ${{ needs.terraform_infra.outputs.project_prefix }}
+      TF_VAR_build_suffix:        ${{ needs.terraform_infra.outputs.build_suffix }}
+      TF_VAR_azure_region:        ${{ needs.terraform_infra.outputs.azure_region }}
+      TF_VAR_resource_group_name: ${{ needs.terraform_infra.outputs.resource_group_name }}
+      TF_VAR_vnet_name:           ${{ needs.terraform_infra.outputs.vnet_name }}
+      TF_VAR_subnet_name:         ${{ needs.terraform_infra.outputs.subnet_name }}
+      TF_VAR_subnet_id:           ${{ needs.terraform_infra.outputs.subnet_id }}
+      TF_VAR_vnet_id:             ${{ needs.terraform_infra.outputs.vnet_id }}
+      # Azure credentials
+      TF_VAR_azure_subscription_id:             ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_azure_subscription_tenant_id:      ${{ secrets.AZURE_TENANT_ID }}
+      TF_VAR_azure_service_principal_appid:     ${{ secrets.AZURE_CLIENT_ID }}
+      TF_VAR_azure_service_principal_password:  ${{ secrets.AZURE_CLIENT_SECRET }}
+      # XC credentials and config
+      TF_VAR_api_url:         ${{ secrets.XC_API_URL }}
+      TF_VAR_xc_tenant:       ${{ secrets.XC_TENANT }}
+      TF_VAR_xc_namespace:    ${{ vars.XC_NAMESPACE }}
+      TF_VAR_app_domain:      ${{ vars.APP_DOMAIN }}
+      TF_VAR_xc_waf_blocking: ${{ vars.XC_WAF_BLOCKING || 'true' }}
+      # XC P12 env vars (consumed directly by the Volterra Terraform provider)
+      VES_P12_PASSWORD: ${{ secrets.XC_P12_PASSWORD }}
+      VOLT_API_P12_FILE: "api.p12"
+      # AppConnect / AKS settings
+      TF_VAR_az_ce_site:           "true"
+      TF_VAR_xc_service_discovery: "true"
+      TF_VAR_k8s_pool:             "true"
+      TF_VAR_serviceName:          "frontend.default"
+      TF_VAR_serviceport:          "80"
+      TF_VAR_advertise_sites:      "false"
+      TF_VAR_http_only:            "true"
+      TF_VAR_xc_delegation:        "true"
+      TF_VAR_vk8s:                 "false"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+          terraform_wrapper: false
 
-      - name: Setup Terraform Backend
-        id: backend
+      - name: Setup Terraform Backend and P12
         run: |
           cat > backend.tf << EOF
           terraform {
             cloud {
               organization = "${{ secrets.TF_CLOUD_ORGANIZATION }}"
               workspaces {
-                name = "${{ secrets.TF_CLOUD_WORKSPACE_XC }}"
+                name = "${{ vars.TF_CLOUD_WORKSPACE_XC }}"
               }
             }
           }
           EOF
-           echo "${{secrets.P12}}" | base64 -d > api.p12
-          
+          echo "${{ secrets.XC_API_P12_FILE }}" | base64 -d > api.p12
+
+      - name: Derive SSH Public Key
+        run: |
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > /tmp/id_rsa
+          chmod 600 /tmp/id_rsa
+          SSH_PUB=$(ssh-keygen -y -f /tmp/id_rsa)
+          rm -f /tmp/id_rsa
+          echo "::add-mask::$SSH_PUB"
+          echo "TF_VAR_ssh_key=$SSH_PUB" >> $GITHUB_ENV
+
+      - name: Decode Kubeconfig
+        run: |
+          KUBECONFIG_RAW=$(echo "$KUBE_CONFIG_B64" | base64 -d)
+          echo "::add-mask::$KUBECONFIG_RAW"
+          DELIM=$(openssl rand -hex 8)
+          {
+            echo "TF_VAR_kubeconfig<<$DELIM"
+            printf '%s\n' "$KUBECONFIG_RAW"
+            echo "$DELIM"
+          } >> $GITHUB_ENV
+        env:
+          KUBE_CONFIG_B64: ${{ needs.terraform_aks.outputs.kube_config_b64 }}
+
       - name: Terraform Init
         id: init
         run: terraform init
-      
+
       - name: Terraform Validate
         id: validate
         run: terraform validate -no-color
 
-      - name: Terraform Plan
-        id: plan
-        if: github.event_name == 'pull_request'
-        run: terraform plan -no-color -input=false
-        continue-on-error: true
-
-      - uses: actions/github-script@v6
-        if: github.event_name == 'pull_request'
-        env:
-          PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const output = `#### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
-            #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
-            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
-            <details><summary>Show Plan</summary>
-            \`\`\`\n
-            ${process.env.PLAN}
-            \`\`\`
-            </details>
-            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: output
-            })
-      - name: Terraform Plan Status
-        if: steps.plan.outcome == 'failure'
-        run: exit 1
-
       - name: Terraform Apply
-        if: github.ref == 'refs/heads/deploy-waf-re-ac-k8s' && github.event_name == 'push'
         run: terraform apply -auto-approve -input=false
