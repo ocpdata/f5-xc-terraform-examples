@@ -165,8 +165,8 @@ jobs:
       - name: Capture Terraform Outputs
         id: tf_outputs
         run: |
-          # Base64-encode kubeconfig for safe multi-line transfer between jobs
-          KUBE_CONFIG=$(terraform output -raw kube_config)
+          # Use the long-lived service account kubeconfig for XC service discovery
+          KUBE_CONFIG=$(terraform output -raw kube_config_xc)
           echo "::add-mask::$KUBE_CONFIG"
           KUBE_CONFIG_B64=$(printf '%s' "$KUBE_CONFIG" | base64 -w 0)
           echo "kube_config_b64=$KUBE_CONFIG_B64" >> $GITHUB_OUTPUT

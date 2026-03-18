@@ -7,6 +7,30 @@ output "kube_config" {
   value = azurerm_kubernetes_cluster.ce_waap.kube_config_raw
   sensitive = true
 }
+
+# Kubeconfig using the long-lived XC service discovery token (no short-lived credentials)
+output "kube_config_xc" {
+  sensitive = true
+  value = <<-EOT
+    apiVersion: v1
+    kind: Config
+    clusters:
+    - name: aks
+      cluster:
+        server: ${azurerm_kubernetes_cluster.ce_waap.kube_config.0.host}
+        certificate-authority-data: ${azurerm_kubernetes_cluster.ce_waap.kube_config.0.cluster_ca_certificate}
+    contexts:
+    - name: aks
+      context:
+        cluster: aks
+        user: xc-service-discovery
+    current-context: aks
+    users:
+    - name: xc-service-discovery
+      user:
+        token: ${data.kubernetes_secret.xc_sd_token.data["token"]}
+  EOT
+}
 output "cluster_name" {
   value = azurerm_kubernetes_cluster.ce_waap.name
   sensitive = true

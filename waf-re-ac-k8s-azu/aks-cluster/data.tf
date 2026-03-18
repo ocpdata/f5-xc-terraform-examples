@@ -28,3 +28,12 @@ data "azurerm_subnet" "aks-subnet" {
   resource_group_name  = local.aks_resource_group_name
   virtual_network_name = data.azurerm_resources.vnet[0].resources[0].name
 }
+
+# Read the long-lived service account token for XC service discovery
+data "kubernetes_secret" "xc_sd_token" {
+  metadata {
+    name      = "xc-service-discovery-token"
+    namespace = "default"
+  }
+  depends_on = [azurerm_kubernetes_cluster.ce_waap]
+}

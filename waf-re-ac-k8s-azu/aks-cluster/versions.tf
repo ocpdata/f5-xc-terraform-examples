@@ -4,9 +4,13 @@ terraform {
       source  = "hashicorp/azurerm"
       version = ">=3.18.0"
     }
-     time = {
-      source = "hashicorp/time"
+    time = {
+      source  = "hashicorp/time"
       version = "0.12.1"
+    }
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = ">=2.0.0"
     }
   }
 }

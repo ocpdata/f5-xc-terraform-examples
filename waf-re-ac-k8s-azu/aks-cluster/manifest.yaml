@@ -760,4 +760,42 @@ spec:
       port: 9555
       targetPort: 9555
 # [END gke_release_kubernetes_manifests_microservices_demo]
+---
+# Service account for F5 XC service discovery (read-only, long-lived token)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: xc-service-discovery
+  namespace: default
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: xc-service-discovery-token
+  namespace: default
+  annotations:
+    kubernetes.io/service-account.name: xc-service-discovery
+type: kubernetes.io/service-account-token
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: xc-service-discovery
+rules:
+  - apiGroups: [""]
+    resources: ["services", "endpoints", "pods", "nodes"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: xc-service-discovery
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: xc-service-discovery
+subjects:
+  - kind: ServiceAccount
+    name: xc-service-discovery
+    namespace: default
 
