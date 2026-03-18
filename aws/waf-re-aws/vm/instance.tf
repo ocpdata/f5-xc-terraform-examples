@@ -18,8 +18,7 @@ resource "aws_instance" "arcadia" {
   }
 
   tags = {
-    Name           = format("%s-arcadia-%s", local.project_prefix, local.build_suffix)
-    resource_owner = local.resource_owner
+    Name = format("%s-arcadia-%s", local.project_prefix, local.build_suffix)
   }
 
   monitoring              = true
@@ -32,7 +31,6 @@ resource "aws_eip" "arcadia" {
   domain   = "vpc"
 
   tags = {
-    Name           = format("%s-arcadia-eip-%s", local.project_prefix, local.build_suffix)
-    resource_owner = local.resource_owner
+    Name = format("%s-arcadia-eip-%s", local.project_prefix, local.build_suffix)
   }
 }

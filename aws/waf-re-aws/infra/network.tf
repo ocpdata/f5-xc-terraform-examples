@@ -4,8 +4,7 @@ resource "aws_vpc" "main" {
   enable_dns_hostnames = true
 
   tags = {
-    Name           = format("%s-vpc-%s", var.project_prefix, random_id.build_suffix.hex)
-    resource_owner = var.resource_owner
+    Name = format("%s-vpc-%s", var.project_prefix, random_id.build_suffix.hex)
   }
 }
 
