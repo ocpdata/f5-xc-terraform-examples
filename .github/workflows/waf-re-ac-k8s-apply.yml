@@ -191,26 +191,8 @@ jobs:
           echo "::add-mask::$TOKEN"
 
           # Build a static kubeconfig using the permanent SA token
-          KUBE_CONFIG=$(cat <<KUBECFGEOF
-apiVersion: v1
-kind: Config
-clusters:
-- name: aks
-  cluster:
-    server: ${SERVER}
-    certificate-authority-data: ${CA_DATA}
-contexts:
-- name: aks
-  context:
-    cluster: aks
-    user: xc-service-discovery
-current-context: aks
-users:
-- name: xc-service-discovery
-  user:
-    token: ${TOKEN}
-KUBECFGEOF
-)
+          # (printf avoids heredoc YAML indentation issues)
+          KUBE_CONFIG=$(printf 'apiVersion: v1\nkind: Config\nclusters:\n- name: aks\n  cluster:\n    server: %s\n    certificate-authority-data: %s\ncontexts:\n- name: aks\n  context:\n    cluster: aks\n    user: xc-service-discovery\ncurrent-context: aks\nusers:\n- name: xc-service-discovery\n  user:\n    token: %s\n' "$SERVER" "$CA_DATA" "$TOKEN")
           echo "::add-mask::$KUBE_CONFIG"
           KUBE_CONFIG_B64=$(printf '%s' "$KUBE_CONFIG" | base64 -w 0)
           echo "kube_config_b64=$KUBE_CONFIG_B64" >> $GITHUB_OUTPUT
