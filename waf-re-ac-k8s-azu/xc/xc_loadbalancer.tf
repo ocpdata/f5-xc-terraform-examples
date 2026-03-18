@@ -34,13 +34,11 @@ resource "volterra_origin_pool" "op" {
     content {
       k8s_service {
         service_name    = var.serviceName
-        vk8s_networks   = true
-        outside_network = true
+        inside_network  = true
         site_locator {
           site {
             name      = coalesce(var.site_name, local.project_prefix)
             namespace = "system"
-            tenant    = var.user_site ? var.xc_tenant : "ves-io"
           }
         }
       }
