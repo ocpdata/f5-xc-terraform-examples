@@ -5,6 +5,7 @@ on:
     branches:
       - destroy-waf-re-aws
   pull_request:
+  workflow_dispatch:
 
 jobs:
 
@@ -89,7 +90,7 @@ jobs:
         run: exit 1
 
       - name: Terraform Destroy
-        if: github.ref == 'refs/heads/destroy-waf-re-aws' && github.event_name == 'push'
+        if: (github.ref == 'refs/heads/destroy-waf-re-aws' && github.event_name == 'push') || github.event_name == 'workflow_dispatch'
         run: terraform destroy -auto-approve -input=false
 
   terraform_vm:
@@ -170,7 +171,7 @@ jobs:
         run: exit 1
 
       - name: Terraform Destroy
-        if: github.ref == 'refs/heads/destroy-waf-re-aws' && github.event_name == 'push'
+        if: (github.ref == 'refs/heads/destroy-waf-re-aws' && github.event_name == 'push') || github.event_name == 'workflow_dispatch'
         run: terraform destroy -auto-approve -input=false
 
   terraform_infra:
@@ -251,5 +252,5 @@ jobs:
         run: exit 1
 
       - name: Terraform Destroy
-        if: github.ref == 'refs/heads/destroy-waf-re-aws' && github.event_name == 'push'
+        if: (github.ref == 'refs/heads/destroy-waf-re-aws' && github.event_name == 'push') || github.event_name == 'workflow_dispatch'
         run: terraform destroy -auto-approve -input=false

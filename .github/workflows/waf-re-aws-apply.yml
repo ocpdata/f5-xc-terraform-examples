@@ -10,6 +10,7 @@ on:
     branches:
       - deploy-waf-re-aws
   pull_request:
+  workflow_dispatch:
 
 jobs:
 
@@ -90,7 +91,7 @@ jobs:
         run: exit 1
 
       - name: Terraform Apply
-        if: github.ref == 'refs/heads/deploy-waf-re-aws' && github.event_name == 'push'
+        if: (github.ref == 'refs/heads/deploy-waf-re-aws' && github.event_name == 'push') || github.event_name == 'workflow_dispatch'
         run: terraform apply -auto-approve -input=false
 
   terraform_vm:
@@ -171,7 +172,7 @@ jobs:
         run: exit 1
 
       - name: Terraform Apply
-        if: github.ref == 'refs/heads/deploy-waf-re-aws' && github.event_name == 'push'
+        if: (github.ref == 'refs/heads/deploy-waf-re-aws' && github.event_name == 'push') || github.event_name == 'workflow_dispatch'
         run: terraform apply -auto-approve -input=false
 
   terraform_xc:
@@ -256,5 +257,5 @@ jobs:
         run: exit 1
 
       - name: Terraform Apply
-        if: github.ref == 'refs/heads/deploy-waf-re-aws' && github.event_name == 'push'
+        if: (github.ref == 'refs/heads/deploy-waf-re-aws' && github.event_name == 'push') || github.event_name == 'workflow_dispatch'
         run: terraform apply -auto-approve -input=false
