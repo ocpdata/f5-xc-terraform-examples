@@ -211,7 +211,7 @@ jobs:
       TF_VAR_serviceport:          "80"
       TF_VAR_advertise_sites:      "false"
       TF_VAR_http_only:            "true"
-      TF_VAR_xc_delegation:        "true"
+      TF_VAR_xc_delegation:        "false"
       TF_VAR_vk8s:                 "false"
     steps:
       - name: Checkout
