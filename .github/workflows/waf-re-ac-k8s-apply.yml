@@ -259,6 +259,38 @@ jobs:
         env:
           KUBE_CONFIG_B64: ${{ needs.terraform_aks.outputs.kube_config_b64 }}
 
+      - name: Ensure XC Namespace Exists
+        run: |
+          API_URL="${{ secrets.XC_API_URL }}"
+          NAMESPACE="${{ vars.XC_NAMESPACE }}"
+          # Strip trailing slash from API URL
+          API_URL="${API_URL%/}"
+          # Check if namespace already exists
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            --cert-type P12 --cert "api.p12:${{ secrets.XC_P12_PASSWORD }}" \
+            "${API_URL}/config/namespaces/${NAMESPACE}")
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "Namespace '${NAMESPACE}' already exists."
+          elif [ "$HTTP_STATUS" = "404" ]; then
+            echo "Namespace '${NAMESPACE}' not found. Creating..."
+            HTTP_CREATE=$(curl -s -o /tmp/ns_response.json -w "%{http_code}" \
+              -X POST \
+              --cert-type P12 --cert "api.p12:${{ secrets.XC_P12_PASSWORD }}" \
+              -H "Content-Type: application/json" \
+              -d "{\"metadata\":{\"name\":\"${NAMESPACE}\",\"namespace\":\"\"},\"spec\":{}}" \
+              "${API_URL}/config/namespaces")
+            if [ "$HTTP_CREATE" = "200" ] || [ "$HTTP_CREATE" = "201" ]; then
+              echo "Namespace '${NAMESPACE}' created successfully."
+            else
+              echo "Failed to create namespace. HTTP status: ${HTTP_CREATE}"
+              cat /tmp/ns_response.json
+              exit 1
+            fi
+          else
+            echo "Unexpected HTTP status ${HTTP_STATUS} when checking namespace."
+            exit 1
+          fi
+
       - name: Terraform Init
         id: init
         run: terraform init
