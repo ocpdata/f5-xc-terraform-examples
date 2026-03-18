@@ -1,4 +1,10 @@
+resource "volterra_namespace" "this" {
+  name        = var.xc_namespace
+  description = format("Namespace for %s", var.xc_namespace)
+}
+
 resource "volterra_app_firewall" "waap-tf" {
+  depends_on  = [volterra_namespace.this]
   name        = format("%s-xcw-%s", local.project_prefix, local.build_suffix)
   namespace   = var.xc_namespace
   description = format("WAF in block mode for %s", "${local.project_prefix}-xcw-${local.build_suffix}")
