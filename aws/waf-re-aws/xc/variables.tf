@@ -33,10 +33,3 @@ variable "xc_waf_blocking" {
   description = "Set WAF to blocking (true) or monitoring (false) mode"
   default     = true
 }
-
-variable "p12_password" {
-  type        = string
-  description = "Password for the F5 XC API P12 certificate"
-  sensitive   = true
-  default     = ""
-}
