@@ -278,7 +278,7 @@ jobs:
           # Check if namespace already exists
           HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
             --cert /tmp/xc_cert.pem --key /tmp/xc_key.pem \
-            "${API_URL}/config/namespaces/${NAMESPACE}")
+            "${API_URL}/web/namespaces/${NAMESPACE}")
           if [ "$HTTP_STATUS" = "200" ]; then
             echo "Namespace '${NAMESPACE}' already exists."
           elif [ "$HTTP_STATUS" = "404" ]; then
@@ -288,7 +288,7 @@ jobs:
               --cert /tmp/xc_cert.pem --key /tmp/xc_key.pem \
               -H "Content-Type: application/json" \
               -d "{\"metadata\":{\"name\":\"${NAMESPACE}\",\"namespace\":\"\"},\"spec\":{}}" \
-              "${API_URL}/config/namespaces")
+              "${API_URL}/web/namespaces")
             if [ "$HTTP_CREATE" = "200" ] || [ "$HTTP_CREATE" = "201" ]; then
               echo "Namespace '${NAMESPACE}' created successfully."
             else
