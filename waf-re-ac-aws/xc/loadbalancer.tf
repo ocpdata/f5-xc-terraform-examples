@@ -8,6 +8,12 @@ resource "volterra_origin_pool" "op" {
     private_ip {
       ip             = local.origin_ip
       inside_network = true
+      site_locator {
+        site {
+          name      = volterra_aws_vpc_site.ce.name
+          namespace = "system"
+        }
+      }
     }
   }
 
