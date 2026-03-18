@@ -15,7 +15,8 @@ output "vpc_id" {
 }
 
 output "subnet_id" {
-  value = aws_subnet.public.id
+  value = aws_subnet.private.id
+  description = "Private subnet ID for DVWA EC2 (egress via NAT)"
 }
 
 output "ce_subnet_id" {

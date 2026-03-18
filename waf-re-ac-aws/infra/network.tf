@@ -49,7 +49,55 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.main.id
 }
 
-# Subnet privada para el CE de F5 XC (sin ruta a internet - requerido por XC)
+# NAT Gateway para que la EC2 privada tenga salida a internet (docker pull)
+resource "aws_eip" "nat" {
+  domain = "vpc"
+
+  tags = {
+    Name = format("%s-nat-eip-%s", var.project_prefix, random_id.build_suffix.hex)
+  }
+}
+
+resource "aws_nat_gateway" "nat" {
+  allocation_id = aws_eip.nat.id
+  subnet_id     = aws_subnet.public.id
+
+  tags = {
+    Name = format("%s-nat-%s", var.project_prefix, random_id.build_suffix.hex)
+  }
+
+  depends_on = [aws_internet_gateway.igw]
+}
+
+# Subnet privada para DVWA (acceso a internet via NAT)
+resource "aws_subnet" "private" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = var.private_subnet_cidr
+  availability_zone       = data.aws_availability_zones.available.names[0]
+  map_public_ip_on_launch = false
+
+  tags = {
+    Name = format("%s-private-subnet-%s", var.project_prefix, random_id.build_suffix.hex)
+  }
+}
+
+resource "aws_route_table" "private" {
+  vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block     = "0.0.0.0/0"
+    nat_gateway_id = aws_nat_gateway.nat.id
+  }
+
+  tags = {
+    Name = format("%s-private-rt-%s", var.project_prefix, random_id.build_suffix.hex)
+  }
+}
+
+resource "aws_route_table_association" "private" {
+  subnet_id      = aws_subnet.private.id
+  route_table_id = aws_route_table.private.id
+}
 resource "aws_subnet" "ce" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = var.ce_subnet_cidr

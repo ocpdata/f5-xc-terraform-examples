@@ -27,6 +27,12 @@ variable "ce_subnet_cidr" {
   default     = "10.0.2.0/24"
 }
 
+variable "private_subnet_cidr" {
+  type        = string
+  description = "CIDR block for the private subnet (DVWA EC2, egress via NAT)"
+  default     = "10.0.3.0/24"
+}
+
 variable "admin_src_addr" {
   type        = string
   description = "Allowed source IP prefix for SSH access"
