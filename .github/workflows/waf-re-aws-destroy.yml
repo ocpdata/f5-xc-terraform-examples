@@ -105,7 +105,6 @@ jobs:
       AWS_SECRET_ACCESS_KEY:           ${{ secrets.AWS_SECRET_KEY }}
       TF_VAR_tf_cloud_organization:    ${{ secrets.TF_CLOUD_ORGANIZATION }}
       TF_VAR_tf_cloud_workspace_infra: ${{ vars.TF_CLOUD_WORKSPACE_AWS_INFRA }}
-      TF_VAR_ssh_key:                  ${{ secrets.SSH_PRIVATE_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -114,6 +113,14 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Extract SSH public key
+        run: |
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > /tmp/id_rsa
+          chmod 600 /tmp/id_rsa
+          SSH_PUBLIC_KEY=$(ssh-keygen -y -f /tmp/id_rsa)
+          rm -f /tmp/id_rsa
+          echo "TF_VAR_ssh_key=${SSH_PUBLIC_KEY}" >> $GITHUB_ENV
 
       - name: Setup Terraform Backend
         id: backend
