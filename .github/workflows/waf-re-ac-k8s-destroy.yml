@@ -1,4 +1,4 @@
-name: "F5XC WAF on RE + AppConnect K8s Destroy"
+name: "F5XC WAF on RE + AppConnect AKS Destroy"
 
 on:
   workflow_dispatch:
