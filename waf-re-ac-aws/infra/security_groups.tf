@@ -7,8 +7,8 @@ resource "aws_security_group" "arcadia" {
     from_port   = 8080
     to_port     = 8080
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "Arcadia nginx proxy"
+    cidr_blocks = [var.vpc_cidr]
+    description = "DVWA app port - accessible from within VPC only"
   }
 
   ingress {

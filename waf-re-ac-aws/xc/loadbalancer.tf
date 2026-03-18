@@ -7,7 +7,7 @@ resource "volterra_origin_pool" "op" {
   origin_servers {
     private_ip {
       ip             = local.origin_ip
-      inside_network = false
+      inside_network = true
     }
   }
 
