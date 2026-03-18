@@ -69,12 +69,6 @@ resource "null_resource" "deploy-yaml" {
     }
   }
 }
-# Wait for Kubernetes to auto-populate the SA token secret after kubectl apply
-resource "time_sleep" "wait_for_sa_token" {
-  depends_on      = [null_resource.deploy-yaml]
-  create_duration = "15s"
-}
-
 # Wait period while a load balancer gets created and fetch an IP address
 resource "time_sleep" "wait_30_seconds" {
   count           = var.use_new_vnet ? 1 : 0
