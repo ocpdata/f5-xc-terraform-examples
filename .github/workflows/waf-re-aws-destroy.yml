@@ -1,5 +1,10 @@
 name: "F5XC WAF on RE AWS Destroy"
 
+# IMPORTANT: The three Terraform Cloud workspaces used by this workflow
+# (INFRA, VM, XC) must be configured with execution mode "Local" so that
+# Terraform runs on the GitHub Actions runner and reads variables from the
+# environment instead of from TFC variable sets.
+
 on:
   push:
     branches:
@@ -59,7 +64,7 @@ jobs:
       - name: Terraform Plan
         id: plan
         if: github.event_name == 'pull_request'
-        run: terraform plan -no-color -input=false
+        run: terraform plan -destroy -no-color -input=false
         continue-on-error: true
 
       - uses: actions/github-script@v6
@@ -147,7 +152,7 @@ jobs:
       - name: Terraform Plan
         id: plan
         if: github.event_name == 'pull_request'
-        run: terraform plan -no-color -input=false
+        run: terraform plan -destroy -no-color -input=false
         continue-on-error: true
 
       - uses: actions/github-script@v6
@@ -228,7 +233,7 @@ jobs:
       - name: Terraform Plan
         id: plan
         if: github.event_name == 'pull_request'
-        run: terraform plan -no-color -input=false
+        run: terraform plan -destroy -no-color -input=false
         continue-on-error: true
 
       - uses: actions/github-script@v6
