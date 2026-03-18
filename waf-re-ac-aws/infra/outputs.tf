@@ -18,6 +18,10 @@ output "subnet_id" {
   value = aws_subnet.public.id
 }
 
+output "aws_az" {
+  value = data.aws_availability_zones.available.names[0]
+}
+
 output "sg_id" {
   value = aws_security_group.arcadia.id
 }
