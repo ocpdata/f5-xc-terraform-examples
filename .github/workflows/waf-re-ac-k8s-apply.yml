@@ -263,11 +263,21 @@ jobs:
         run: |
           API_URL="${{ secrets.XC_API_URL }}"
           NAMESPACE="${{ vars.XC_NAMESPACE }}"
-          # Strip trailing slash from API URL
           API_URL="${API_URL%/}"
+
+          # Convert P12 to PEM (try modern format first, then legacy)
+          openssl pkcs12 -in api.p12 -clcerts -nokeys -out /tmp/xc_cert.pem \
+            -passin "pass:${VES_P12_PASSWORD}" 2>/dev/null || \
+          openssl pkcs12 -in api.p12 -legacy -clcerts -nokeys -out /tmp/xc_cert.pem \
+            -passin "pass:${VES_P12_PASSWORD}"
+          openssl pkcs12 -in api.p12 -nocerts -nodes -out /tmp/xc_key.pem \
+            -passin "pass:${VES_P12_PASSWORD}" 2>/dev/null || \
+          openssl pkcs12 -in api.p12 -legacy -nocerts -nodes -out /tmp/xc_key.pem \
+            -passin "pass:${VES_P12_PASSWORD}"
+
           # Check if namespace already exists
           HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            --cert-type P12 --cert "api.p12:${{ secrets.XC_P12_PASSWORD }}" \
+            --cert /tmp/xc_cert.pem --key /tmp/xc_key.pem \
             "${API_URL}/config/namespaces/${NAMESPACE}")
           if [ "$HTTP_STATUS" = "200" ]; then
             echo "Namespace '${NAMESPACE}' already exists."
@@ -275,7 +285,7 @@ jobs:
             echo "Namespace '${NAMESPACE}' not found. Creating..."
             HTTP_CREATE=$(curl -s -o /tmp/ns_response.json -w "%{http_code}" \
               -X POST \
-              --cert-type P12 --cert "api.p12:${{ secrets.XC_P12_PASSWORD }}" \
+              --cert /tmp/xc_cert.pem --key /tmp/xc_key.pem \
               -H "Content-Type: application/json" \
               -d "{\"metadata\":{\"name\":\"${NAMESPACE}\",\"namespace\":\"\"},\"spec\":{}}" \
               "${API_URL}/config/namespaces")
@@ -290,6 +300,7 @@ jobs:
             echo "Unexpected HTTP status ${HTTP_STATUS} when checking namespace."
             exit 1
           fi
+          rm -f /tmp/xc_cert.pem /tmp/xc_key.pem
 
       - name: Terraform Init
         id: init
