@@ -30,10 +30,13 @@ data "azurerm_subnet" "aks-subnet" {
 }
 
 # Read the long-lived service account token for XC service discovery
+# depends_on time_sleep.wait_for_sa_token ensures:
+#   1. kubectl apply -f manifest.yaml has already run (null_resource.deploy-yaml)
+#   2. Kubernetes has had time to auto-populate the token into the Secret
 data "kubernetes_secret" "xc_sd_token" {
   metadata {
     name      = "xc-service-discovery-token"
     namespace = "default"
   }
-  depends_on = [azurerm_kubernetes_cluster.ce_waap]
+  depends_on = [time_sleep.wait_for_sa_token]
 }
