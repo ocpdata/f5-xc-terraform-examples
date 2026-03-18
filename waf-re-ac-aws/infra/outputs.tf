@@ -21,3 +21,24 @@ output "subnet_id" {
 output "sg_id" {
   value = aws_security_group.arcadia.id
 }
+
+# Boolean outputs required by xc/data.tf to conditionally load workspaces
+output "bigip" {
+  value = false
+}
+
+output "nap" {
+  value = false
+}
+
+output "nic" {
+  value = false
+}
+
+output "aks-cluster" {
+  value = false
+}
+
+output "azure-vm" {
+  value = false
+}

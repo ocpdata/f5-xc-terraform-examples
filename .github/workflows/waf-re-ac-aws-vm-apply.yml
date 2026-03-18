@@ -128,7 +128,7 @@ jobs:
         working-directory: ./xc
     env:
       TF_VAR_tf_cloud_organization: ${{ secrets.TF_CLOUD_ORGANIZATION }}
-      TF_VAR_aws: ${{ vars.TF_CLOUD_WORKSPACE_AWS_VM }}
+      TF_VAR_aws: ${{ vars.TF_CLOUD_WORKSPACE_AWS_INFRA }}
       TF_VAR_xc_tenant: ${{ secrets.XC_TENANT }}
       TF_VAR_api_url: ${{ secrets.XC_API_URL }}
       TF_VAR_xc_namespace: ${{ vars.XC_NAMESPACE }}
@@ -146,6 +146,20 @@ jobs:
           SSH_PUBLIC_KEY=$(ssh-keygen -y -f /tmp/ssh_private_key)
           rm -f /tmp/ssh_private_key
           echo "TF_VAR_ssh_key=${SSH_PUBLIC_KEY}" >> $GITHUB_ENV
+
+      - name: Get DVWA private IP from TF Cloud
+        run: |
+          ORG="${{ secrets.TF_CLOUD_ORGANIZATION }}"
+          WS="${{ vars.TF_CLOUD_WORKSPACE_AWS_VM }}"
+          TOKEN="${{ secrets.TF_API_TOKEN }}"
+          WS_ID=$(curl -sf -H "Authorization: Bearer ${TOKEN}" \
+            "https://app.terraform.io/api/v2/organizations/${ORG}/workspaces/${WS}" \
+            | jq -r '.data.id')
+          VM_IP=$(curl -sf -H "Authorization: Bearer ${TOKEN}" \
+            "https://app.terraform.io/api/v2/workspaces/${WS_ID}/current-state-version-outputs" \
+            | jq -r '.data[] | select(.attributes.name=="vm_ip") | .attributes.value')
+          echo "TF_VAR_serviceName=${VM_IP}" >> $GITHUB_ENV
+          echo "TF_VAR_serviceport=8080" >> $GITHUB_ENV
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
