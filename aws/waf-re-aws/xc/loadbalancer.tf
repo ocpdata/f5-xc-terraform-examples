@@ -20,7 +20,7 @@ resource "volterra_http_loadbalancer" "lb_https" {
   depends_on  = [volterra_origin_pool.op, volterra_app_firewall.waap-tf]
   name        = format("%s-xclb-%s", local.project_prefix, local.build_suffix)
   namespace   = var.xc_namespace
-  description = format("HTTPS LB with WAF for Arcadia Finance on AWS RE")
+  description = format("HTTP LB with WAF for Arcadia Finance on AWS RE")
 
   domains                         = [var.app_domain]
   advertise_on_public_default_vip = true
@@ -33,14 +33,8 @@ resource "volterra_http_loadbalancer" "lb_https" {
     weight = 1
   }
 
-  https_auto_cert {
-    add_hsts              = false
-    http_redirect         = true
-    no_mtls               = true
-    enable_path_normalize = true
-    tls_config {
-      default_security = true
-    }
+  http {
+    port = 80
   }
 
   app_firewall {
