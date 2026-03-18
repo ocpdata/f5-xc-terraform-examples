@@ -7,7 +7,7 @@ resource "azurerm_kubernetes_cluster" "ce_waap" {
     name                = "default"
     node_count          = 1
     vm_size             = "Standard_D4s_v3"
-    vnet_subnet_id      = var.use_new_vnet ? null : local.subnet_id
+    vnet_subnet_id      = var.use_new_vnet ? null : (local.subnet_id != "" ? local.subnet_id : null)
     auto_scaling_enabled= false
     # below field is renamed in latest resource version
     # enable_auto_scaling = false
