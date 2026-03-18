@@ -34,7 +34,7 @@ resource "volterra_aws_vpc_site" "ce" {
       aws_az_name = local.aws_az
       disk_size   = 0
       local_subnet {
-        existing_subnet_id = local.subnet_id
+        existing_subnet_id = local.ce_subnet_id
       }
     }
   }

@@ -48,3 +48,28 @@ resource "aws_route_table_association" "public" {
   subnet_id      = aws_subnet.public.id
   route_table_id = aws_route_table.main.id
 }
+
+# Subnet privada para el CE de F5 XC (sin ruta a internet - requerido por XC)
+resource "aws_subnet" "ce" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = var.ce_subnet_cidr
+  availability_zone       = data.aws_availability_zones.available.names[0]
+  map_public_ip_on_launch = false
+
+  tags = {
+    Name = format("%s-ce-subnet-%s", var.project_prefix, random_id.build_suffix.hex)
+  }
+}
+
+resource "aws_route_table" "ce" {
+  vpc_id = aws_vpc.main.id
+
+  tags = {
+    Name = format("%s-ce-rt-%s", var.project_prefix, random_id.build_suffix.hex)
+  }
+}
+
+resource "aws_route_table_association" "ce" {
+  subnet_id      = aws_subnet.ce.id
+  route_table_id = aws_route_table.ce.id
+}

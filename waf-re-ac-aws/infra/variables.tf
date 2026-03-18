@@ -21,6 +21,12 @@ variable "subnet_cidr" {
   default     = "10.0.1.0/24"
 }
 
+variable "ce_subnet_cidr" {
+  type        = string
+  description = "CIDR block for the CE private subnet (no internet route - required by F5 XC)"
+  default     = "10.0.2.0/24"
+}
+
 variable "admin_src_addr" {
   type        = string
   description = "Allowed source IP prefix for SSH access"

@@ -18,6 +18,10 @@ output "subnet_id" {
   value = aws_subnet.public.id
 }
 
+output "ce_subnet_id" {
+  value = aws_subnet.ce.id
+}
+
 output "aws_az" {
   value = data.aws_availability_zones.available.names[0]
 }
