@@ -50,3 +50,9 @@ variable "ssh_key" {
   type        = string
   description = "SSH public key para el CE node"
 }
+
+variable "xc_p12_password" {
+  type        = string
+  description = "Password del archivo P12 para autenticación con XC API"
+  sensitive   = true
+}
