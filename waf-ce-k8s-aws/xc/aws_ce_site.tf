@@ -35,6 +35,9 @@ resource "volterra_aws_vpc_site" "aws_site" {
       inside_subnet {
         existing_subnet_id = local.aws_sli_subnet
       }
+      workload_subnet {
+        existing_subnet_id = local.aws_workload_subnet
+      }
     }
   }
   logs_streaming_disabled = true
