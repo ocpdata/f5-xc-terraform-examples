@@ -11,9 +11,25 @@ resource "volterra_cloud_credentials" "aws_cred" {
     }
   }
 }
-resource "volterra_aws_vpc_site" "aws_site" {
+
+# XC API deletes aws_vpc_site asynchronously: the DELETE call returns 200 but
+# the object remains in XC's DB for ~30-60s. Without this delay, Terraform
+# immediately proceeds to delete cloud_credentials and gets a 409 because
+# XC still sees the vpc_site referencing the credentials.
+# Destroy order enforced: vpc_site → this sleep → credentials
+resource "null_resource" "wait_for_vpc_site_gc" {
   count      = var.aws_ce_site ? 1 : 0
   depends_on = [volterra_cloud_credentials.aws_cred]
+
+  provisioner "local-exec" {
+    when    = destroy
+    command = "sleep 60"
+  }
+}
+
+resource "volterra_aws_vpc_site" "aws_site" {
+  count      = var.aws_ce_site ? 1 : 0
+  depends_on = [volterra_cloud_credentials.aws_cred, null_resource.wait_for_vpc_site_gc]
   name       = "${coalesce(var.site_name, local.project_prefix)}"
   namespace  = "system"
   aws_region = local.aws_region
