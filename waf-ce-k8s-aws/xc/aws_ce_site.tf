@@ -12,7 +12,8 @@ resource "volterra_cloud_credentials" "aws_cred" {
   }
 }
 resource "volterra_aws_vpc_site" "aws_site" {
-  count = var.aws_ce_site ? 1 : 0
+  count      = var.aws_ce_site ? 1 : 0
+  depends_on = [volterra_cloud_credentials.aws_cred]
   name       = "${coalesce(var.site_name, local.project_prefix)}"
   namespace  = "system"
   aws_region = local.aws_region
