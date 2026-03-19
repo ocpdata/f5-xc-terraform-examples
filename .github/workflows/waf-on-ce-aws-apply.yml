@@ -44,6 +44,12 @@ jobs:
         id: init
         run: terraform init
 
+      - name: Remove stale non-AWS state
+        run: |
+          terraform state list 2>/dev/null \
+            | grep -E '^(azurerm_|module\.[^.]+\.azurerm_|google_|module\.[^.]+\.google_)' \
+            | xargs -r terraform state rm || true
+
       - name: Terraform Validate
         id: validate
         run: terraform validate -no-color
