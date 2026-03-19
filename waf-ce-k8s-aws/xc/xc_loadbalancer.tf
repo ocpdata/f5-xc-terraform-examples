@@ -1,7 +1,7 @@
 # Wait for CE site creation
 resource "null_resource" "wait_for_site"{
   count           =  var.az_ce_site ? 1 : 0
-  depends_on      =  [volterra_tf_params_action.action_apply]
+  depends_on      =  [volterra_tf_params_action.example]
 }
 
 resource "null_resource" "wait_for_ekssite"{
