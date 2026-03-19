@@ -54,8 +54,20 @@ AZ2 = 10.0.16.0/20
     {
       name     = "app-cidr"
       new_bits = 2
-      #10.0.1.0/24 EC2
-      #10.0.17.0/24 EKS
+      #10.0.4.0/22 AZ1 (used by EKS)
+      #10.0.20.0/22 AZ2
+    },
+    {
+      name     = "ce-outside"
+      new_bits = 6
+      #10.0.8.0/26 AZ1 - CE SLO subnet (no route table, XC manages routing)
+      #10.0.24.0/26 AZ2
+    },
+    {
+      name     = "ce-inside"
+      new_bits = 6
+      #10.0.8.64/26 AZ1 - CE SLI subnet (no route table, XC manages routing)
+      #10.0.24.64/26 AZ2
     }
   ]
 }
@@ -88,6 +100,27 @@ resource "aws_subnet" "external" {
     Name = format("%s-ext-subnet-%s",var.project_prefix,each.key)
   }
 }
+resource "aws_subnet" "ce-outside" {
+  for_each                = toset(var.azs)
+  vpc_id                  = module.vpc.vpc_id
+  cidr_block              = module.subnet_addrs[each.key].network_cidr_blocks["ce-outside"]
+  map_public_ip_on_launch = true
+  availability_zone       = each.key
+  tags = {
+    Name = format("%s-ce-outside-subnet-%s", var.project_prefix, each.key)
+  }
+}
+
+resource "aws_subnet" "ce-inside" {
+  for_each          = toset(var.azs)
+  vpc_id            = module.vpc.vpc_id
+  cidr_block        = module.subnet_addrs[each.key].network_cidr_blocks["ce-inside"]
+  availability_zone = each.key
+  tags = {
+    Name = format("%s-ce-inside-subnet-%s", var.project_prefix, each.key)
+  }
+}
+
 resource "aws_route_table" "main" {
   vpc_id = module.vpc.vpc_id
   route {

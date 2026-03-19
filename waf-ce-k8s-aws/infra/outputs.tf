@@ -81,6 +81,16 @@ output "mgmt_subnet_az2" {
   value       = values(aws_subnet.management)[1].id
 }
 
+output "ce_outside_subnet_az1" {
+  description = "ID of CE dedicated outside (SLO) subnet AZ1 - no route table association"
+  value       = values(aws_subnet.ce-outside)[0].id
+}
+
+output "ce_inside_subnet_az1" {
+  description = "ID of CE dedicated inside (SLI) subnet AZ1 - no route table association"
+  value       = values(aws_subnet.ce-inside)[0].id
+}
+
 output "external_sg_id" {
   value       = aws_security_group.external.id
 }
