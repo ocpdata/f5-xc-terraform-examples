@@ -221,7 +221,6 @@ jobs:
       TF_VAR_aws: ${{ vars.TF_CLOUD_WORKSPACE_INFRA }}
       TF_VAR_tf_cloud_workspace_eks: ${{ vars.TF_CLOUD_WORKSPACE_EKS }}
       TF_VAR_tf_cloud_workspace_boutique: ${{ vars.TF_CLOUD_WORKSPACE_BOUTIQUE }}
-      TF_VAR_ssh_key: ""
       TF_VAR_aws_ce_site: "true"
       TF_VAR_aws_access_key: ${{ secrets.AWS_ACCESS_KEY }}
       TF_VAR_aws_secret_key: ${{ secrets.AWS_SECRET_KEY }}
@@ -261,8 +260,17 @@ jobs:
         id: validate
         run: terraform validate -no-color
 
+      - name: Setup SSH Key
+        id: ssh_setup
+        run: |
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > /tmp/ssh_key
+          chmod 600 /tmp/ssh_key
+          echo "pub_key=$(ssh-keygen -y -f /tmp/ssh_key)" >> $GITHUB_OUTPUT
+
       - name: Terraform Plan
         id: plan
+        env:
+          TF_VAR_ssh_key: ${{ steps.ssh_setup.outputs.pub_key }}
         run: terraform plan -no-color -input=false
 
       - name: Terraform Plan Status
@@ -270,4 +278,6 @@ jobs:
         run: exit 1
 
       - name: Terraform Apply
+        env:
+          TF_VAR_ssh_key: ${{ steps.ssh_setup.outputs.pub_key }}
         run: terraform apply -auto-approve -input=false
