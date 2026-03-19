@@ -150,6 +150,9 @@ jobs:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}
       TF_VAR_tf_cloud_organization: ${{ secrets.TF_CLOUD_ORGANIZATION }}
+      TF_VAR_tf_cloud_workspace_infra: ${{ vars.TF_CLOUD_WORKSPACE_INFRA }}
+      TF_VAR_tf_cloud_workspace_eks: ${{ vars.TF_CLOUD_WORKSPACE_EKS }}
+      TF_VAR_tf_cloud_workspace_boutique: ${{ vars.TF_CLOUD_WORKSPACE_BOUTIQUE }}
     defaults:
       run:
         working-directory: ./waf-ce-k8s-aws/boutique
