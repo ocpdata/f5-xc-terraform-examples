@@ -27,7 +27,6 @@ resource "volterra_aws_vpc_site" "aws_site" {
   }
   ingress_egress_gw {
     aws_certified_hw = "aws-byol-multi-nic-voltmesh"
-    nodes_per_az     = 1
     az_nodes {
       aws_az_name = local.aws_ec2_azs
       disk_size   = 0
