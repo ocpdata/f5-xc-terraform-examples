@@ -219,6 +219,8 @@ jobs:
       TF_VAR_app_domain: ${{ vars.APP_DOMAIN }}
       TF_VAR_tf_cloud_organization: ${{ secrets.TF_CLOUD_ORGANIZATION }}
       TF_VAR_aws: ${{ vars.TF_CLOUD_WORKSPACE_INFRA }}
+      TF_VAR_tf_cloud_workspace_eks: ${{ vars.TF_CLOUD_WORKSPACE_EKS }}
+      TF_VAR_tf_cloud_workspace_boutique: ${{ vars.TF_CLOUD_WORKSPACE_BOUTIQUE }}
       TF_VAR_ssh_key: ""
       TF_VAR_aws_ce_site: "true"
       TF_VAR_aws_access_key: ${{ secrets.AWS_ACCESS_KEY }}

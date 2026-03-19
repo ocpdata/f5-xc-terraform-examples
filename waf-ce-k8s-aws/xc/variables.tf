@@ -11,6 +11,18 @@ variable "tf_cloud_organization" {
   description = "TF cloud org (Value set in TF cloud)"
 }
 
+variable "tf_cloud_workspace_eks" {
+  type        = string
+  description = "TF Cloud workspace name for EKS outputs"
+  default     = ""
+}
+
+variable "tf_cloud_workspace_boutique" {
+  type        = string
+  description = "TF Cloud workspace name for boutique outputs"
+  default     = ""
+}
+
 variable "ssh_key" {
   type        = string
   description = "SSH pub key, only present for warning handling with TF cloud variable set"

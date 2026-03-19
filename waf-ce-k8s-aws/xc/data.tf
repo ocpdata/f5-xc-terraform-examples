@@ -48,12 +48,12 @@ data "tfe_outputs" "eks" {
 data "tfe_outputs" "aws_eks_cluster" {
   count               = var.aws_ce_site ? 1 : 0
   organization        = var.tf_cloud_organization
-  workspace           = "aws_eks_cluster"
+  workspace           = var.tf_cloud_workspace_eks
 }
 data "tfe_outputs" "app-deploy" {
   count               = var.aws_ce_site ? 1 : 0
   organization        = var.tf_cloud_organization
-  workspace           = "boutique_app"
+  workspace           = var.tf_cloud_workspace_boutique
 }
 
 data "tfe_outputs" "gke" {
