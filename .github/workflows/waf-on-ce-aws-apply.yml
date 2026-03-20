@@ -86,6 +86,11 @@ jobs:
       TF_VAR_aws_region: ${{ vars.AWS_REGION }}
       TF_VAR_project_prefix: ${{ vars.PROJECT_PREFIX }}
       TF_VAR_tf_cloud_organization: ${{ secrets.TF_CLOUD_ORGANIZATION }}
+      TF_VAR_desired_size: "1"
+      TF_VAR_min_size: "1"
+      TF_VAR_max_size: "1"
+      TF_VAR_skip_ha_az_node_group: "true"
+      TF_VAR_skip_private_subnet_creation: "true"
     defaults:
       run:
         working-directory: ./waf-ce-k8s-aws/eks-cluster
