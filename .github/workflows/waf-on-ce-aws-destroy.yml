@@ -123,6 +123,10 @@ jobs:
         id: init
         run: terraform init
 
+      - name: Remove kubectl resources from state
+        run: |
+          terraform state list 2>/dev/null | grep kubectl_manifest | xargs -r terraform state rm || true
+
       - name: Terraform Validate
         id: validate
         run: terraform validate -no-color
