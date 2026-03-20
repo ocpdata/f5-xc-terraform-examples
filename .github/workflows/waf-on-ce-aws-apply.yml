@@ -22,6 +22,7 @@ name: "F5 XC WAF on CE AWS Deploy"
 #   TF_CLOUD_WORKSPACE_XC             - TFC workspace name for F5 XC
 #   AWS_REGION                        - AWS region (e.g. us-east-1)
 #   AZS                               - Comma-separated availability zones
+#   VPC_CIDR                          - VPC CIDR block (e.g. 10.0.0.0/16)
 #   PROJECT_PREFIX                    - Prefix for all resource names
 #   XC_NAMESPACE                      - F5 XC namespace
 #   APP_DOMAIN                        - App FQDN
@@ -126,6 +127,7 @@ jobs:
       TF_VAR_project_prefix: ${{ vars.PROJECT_PREFIX }}
       TF_VAR_tf_cloud_organization: ${{ secrets.TF_CLOUD_ORGANIZATION }}
       TF_VAR_azs: ${{ vars.AZS }}
+      TF_VAR_cidr: ${{ vars.VPC_CIDR }}
     defaults:
       run:
         working-directory: ./waf-ce-k8s-aws/infra
