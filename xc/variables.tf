@@ -292,7 +292,7 @@ variable "azure_service_principal_password" {
 
 variable "azure_xc_machine_type" {
   type    = string
-  default = "Standard_D4s_v3"
+  default = "Standard_D4_v2"
 }
 
 # XC Service Discovery
