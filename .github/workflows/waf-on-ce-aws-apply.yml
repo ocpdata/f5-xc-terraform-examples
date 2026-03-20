@@ -1,12 +1,124 @@
 name: "F5 XC WAF on CE AWS Deploy"
+# Deploys resources in order: AWS Infra → EKS Cluster → Boutique App → F5XC WAF.
+# TFC workspaces are created automatically by the setup_tfc_workspaces job via
+# the Terraform Cloud API. Each workspace is configured with Execution Mode
+# "local" and Remote State Sharing enabled between all four workspaces.
+#
+# Required GitHub Secrets:
+#   TF_API_TOKEN                      - Terraform Cloud API token
+#   TF_CLOUD_ORGANIZATION             - Terraform Cloud organization name
+#   AWS_ACCESS_KEY                    - AWS access key ID
+#   AWS_SECRET_KEY                    - AWS secret access key
+#   SSH_PRIVATE_KEY                   - SSH private key (public key is derived at runtime)
+#   XC_TENANT                         - F5 XC tenant name
+#   XC_API_URL                        - F5 XC API URL
+#   XC_P12_PASSWORD                   - Password for the F5 XC .p12 certificate
+#   XC_API_P12_FILE                   - F5 XC API certificate (.p12) in base64
+#
+# Required GitHub Variables (Settings -> Secrets and variables -> Variables):
+#   TF_CLOUD_WORKSPACE_INFRA          - TFC workspace name for AWS Infra
+#   TF_CLOUD_WORKSPACE_EKS            - TFC workspace name for EKS Cluster
+#   TF_CLOUD_WORKSPACE_BOUTIQUE       - TFC workspace name for App Deploy
+#   TF_CLOUD_WORKSPACE_XC             - TFC workspace name for F5 XC
+#   AWS_REGION                        - AWS region (e.g. us-east-1)
+#   AZS                               - Comma-separated availability zones
+#   PROJECT_PREFIX                    - Prefix for all resource names
+#   XC_NAMESPACE                      - F5 XC namespace
+#   APP_DOMAIN                        - App FQDN
 
 on:
   workflow_dispatch:
 
 jobs:
+  setup_tfc_workspaces:
+    name: "Setup TFC Workspaces"
+    runs-on: ubuntu-latest
+    env:
+      TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
+      TF_ORG: ${{ secrets.TF_CLOUD_ORGANIZATION }}
+      WS_INFRA: ${{ vars.TF_CLOUD_WORKSPACE_INFRA }}
+      WS_EKS: ${{ vars.TF_CLOUD_WORKSPACE_EKS }}
+      WS_BOUTIQUE: ${{ vars.TF_CLOUD_WORKSPACE_BOUTIQUE }}
+      WS_XC: ${{ vars.TF_CLOUD_WORKSPACE_XC }}
+    steps:
+      - name: Create workspaces and configure Remote State Sharing
+        run: |
+          TFC_API="https://app.terraform.io/api/v2"
+          AUTH="Authorization: Bearer ${TF_API_TOKEN}"
+          CT="Content-Type: application/vnd.api+json"
+
+          create_or_update_workspace() {
+            local ws_name=$1
+            existing=$(curl -sf \
+              --header "${AUTH}" \
+              "${TFC_API}/organizations/${TF_ORG}/workspaces/${ws_name}" || true)
+
+            if [ -n "${existing}" ]; then
+              echo "Workspace '${ws_name}' already exists — ensuring execution-mode=local" >&2
+              ws_id=$(echo "${existing}" | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['id'])")
+              curl -sf \
+                --header "${AUTH}" \
+                --header "${CT}" \
+                --request PATCH \
+                --data "{\"data\":{\"type\":\"workspaces\",\"attributes\":{\"execution-mode\":\"local\"}}}" \
+                "${TFC_API}/workspaces/${ws_id}" > /dev/null
+            else
+              echo "Creating workspace '${ws_name}'" >&2
+              response=$(curl -sf \
+                --header "${AUTH}" \
+                --header "${CT}" \
+                --request POST \
+                --data "{\"data\":{\"type\":\"workspaces\",\"attributes\":{\"name\":\"${ws_name}\",\"execution-mode\":\"local\",\"global-remote-state\":false}}}" \
+                "${TFC_API}/organizations/${TF_ORG}/workspaces")
+              ws_id=$(echo "${response}" | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['id'])")
+            fi
+            echo "${ws_id}"
+          }
+
+          add_remote_state_consumer() {
+            local producer_id=$1
+            local consumer_id=$2
+            http_code=$(curl -s -o /dev/null -w "%{http_code}" \
+              --header "${AUTH}" \
+              --header "${CT}" \
+              --request POST \
+              --data "{\"data\":[{\"id\":\"${consumer_id}\",\"type\":\"workspaces\"}]}" \
+              "${TFC_API}/workspaces/${producer_id}/relationships/remote-state-consumers")
+            if [ "${http_code}" = "204" ] || [ "${http_code}" = "422" ]; then
+              echo "  remote-state-consumer ok (${http_code})"
+            else
+              echo "  ERROR adding remote-state-consumer: HTTP ${http_code}" && exit 1
+            fi
+          }
+
+          echo "=== Creating / updating workspaces ==="
+          ID_INFRA=$(create_or_update_workspace "${WS_INFRA}")
+          echo "  AWS Infra   -> ${ID_INFRA}"
+          ID_EKS=$(create_or_update_workspace "${WS_EKS}")
+          echo "  EKS Cluster -> ${ID_EKS}"
+          ID_BOUTIQUE=$(create_or_update_workspace "${WS_BOUTIQUE}")
+          echo "  App Deploy  -> ${ID_BOUTIQUE}"
+          ID_XC=$(create_or_update_workspace "${WS_XC}")
+          echo "  XC Deploy   -> ${ID_XC}"
+
+          echo "=== Configuring Remote State Sharing ==="
+          echo "AWS Infra -> EKS:"
+          add_remote_state_consumer "${ID_INFRA}" "${ID_EKS}"
+          echo "AWS Infra -> Boutique:"
+          add_remote_state_consumer "${ID_INFRA}" "${ID_BOUTIQUE}"
+          echo "AWS Infra -> XC:"
+          add_remote_state_consumer "${ID_INFRA}" "${ID_XC}"
+          echo "EKS -> Boutique:"
+          add_remote_state_consumer "${ID_EKS}" "${ID_BOUTIQUE}"
+          echo "EKS -> XC:"
+          add_remote_state_consumer "${ID_EKS}" "${ID_XC}"
+          echo "Boutique -> XC:"
+          add_remote_state_consumer "${ID_BOUTIQUE}" "${ID_XC}"
+
   terraform_infra:
     name: "AWS Infra"
     runs-on: ubuntu-latest
+    needs: [setup_tfc_workspaces]
     env:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}
@@ -259,6 +371,39 @@ jobs:
           EOF
           echo "${{ secrets.XC_API_P12_FILE }}" | base64 -d > api.p12
 
+      - name: Create XC Namespace if not exists
+        run: |
+          XC_API_BASE=$(echo "${{ secrets.XC_API_URL }}" | sed 's|/api$||')
+          openssl pkcs12 -legacy -in api.p12 -passin pass:"${{ secrets.XC_P12_PASSWORD }}" -nokeys -clcerts -out /tmp/client.crt
+          openssl pkcs12 -legacy -in api.p12 -passin pass:"${{ secrets.XC_P12_PASSWORD }}" -nocerts -nodes -out /tmp/client.key
+          if [ ! -s /tmp/client.crt ] || [ ! -s /tmp/client.key ]; then
+            echo "ERROR: Failed to extract cert/key from P12"
+            exit 1
+          fi
+          HTTP_CODE=$(curl -s -o /tmp/ns_response.json -w "%{http_code}" \
+            --cert /tmp/client.crt \
+            --key /tmp/client.key \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -d "{\"metadata\":{\"name\":\"${{ vars.XC_NAMESPACE }}\",\"namespace\":\"\"},\"spec\":{}}" \
+            "${XC_API_BASE}/api/web/namespaces")
+          rm -f /tmp/client.crt /tmp/client.key
+          echo "Response code: ${HTTP_CODE}"
+          cat /tmp/ns_response.json
+          # 200=created, 409=already exists — both are acceptable
+          if [ "${HTTP_CODE}" != "200" ] && [ "${HTTP_CODE}" != "409" ]; then
+            echo "ERROR: Failed to create namespace (HTTP ${HTTP_CODE})"
+            exit 1
+          fi
+
+      - name: Derive SSH public key from private key
+        run: |
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > /tmp/ssh_private_key
+          chmod 600 /tmp/ssh_private_key
+          SSH_PUB=$(ssh-keygen -y -f /tmp/ssh_private_key)
+          rm -f /tmp/ssh_private_key
+          echo "TF_VAR_ssh_key=${SSH_PUB}" >> $GITHUB_ENV
+
       - name: Terraform Init
         id: init
         run: terraform init
@@ -267,24 +412,14 @@ jobs:
         id: validate
         run: terraform validate -no-color
 
-      - name: Setup SSH Key
-        id: ssh_setup
-        run: |
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > /tmp/ssh_key
-          chmod 600 /tmp/ssh_key
-          echo "pub_key=$(ssh-keygen -y -f /tmp/ssh_key)" >> $GITHUB_OUTPUT
-
       - name: Terraform Plan
         id: plan
-        env:
-          TF_VAR_ssh_key: ${{ steps.ssh_setup.outputs.pub_key }}
         run: terraform plan -no-color -input=false
+        continue-on-error: true
 
       - name: Terraform Plan Status
         if: steps.plan.outcome == 'failure'
         run: exit 1
 
       - name: Terraform Apply
-        env:
-          TF_VAR_ssh_key: ${{ steps.ssh_setup.outputs.pub_key }}
         run: terraform apply -auto-approve -input=false
