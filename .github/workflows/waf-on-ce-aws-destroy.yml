@@ -58,6 +58,7 @@ jobs:
           terraform state rm 'volterra_tf_params_action.action_apply[0]' || true
           terraform state rm 'volterra_azure_vnet_site.azure_site[0]' || true
           terraform state rm 'volterra_cloud_credentials.azure_cred[0]' || true
+          terraform state rm 'null_resource.wait_for_vpc_site_gc[0]' || true
 
       - name: Terraform Validate
         id: validate
