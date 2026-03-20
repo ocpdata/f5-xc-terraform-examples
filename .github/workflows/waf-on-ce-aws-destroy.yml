@@ -51,6 +51,12 @@ jobs:
         id: init
         run: terraform init
 
+      - name: Remove stale Azure XC resources from state
+        run: |
+          terraform state rm 'volterra_tf_params_action.action_apply[0]' || true
+          terraform state rm 'volterra_azure_vnet_site.azure_site[0]' || true
+          terraform state rm 'volterra_cloud_credentials.azure_cred[0]' || true
+
       - name: Terraform Validate
         id: validate
         run: terraform validate -no-color

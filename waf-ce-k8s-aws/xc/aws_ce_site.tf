@@ -10,6 +10,12 @@ resource "volterra_cloud_credentials" "aws_cred" {
       }
     }
   }
+  # XC API deletes aws_vpc_site asynchronously. Wait 90s before deleting
+  # credentials so XC has time to remove the vpc_site reference (avoids 409).
+  provisioner "local-exec" {
+    when    = destroy
+    command = "sleep 90"
+  }
 }
 
 # XC API deletes aws_vpc_site asynchronously: the DELETE call returns 200 but
