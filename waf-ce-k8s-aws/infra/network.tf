@@ -62,18 +62,6 @@ AZ2 = 10.0.16.0/20
       new_bits = 6
       #10.0.8.0/26 AZ1 - CE SLO subnet (no route table, XC manages routing)
       #10.0.24.0/26 AZ2
-    },
-    {
-      name     = "ce-inside"
-      new_bits = 6
-      #10.0.8.64/26 AZ1 - CE SLI subnet (no route table, XC manages routing)
-      #10.0.24.64/26 AZ2
-    },
-    {
-      name     = "ce-workload"
-      new_bits = 6
-      #10.0.8.128/26 AZ1 - CE workload subnet (no route table, required by XC ingress_egress_gw internal TF)
-      #10.0.24.128/26 AZ2
     }
   ]
 }
@@ -114,26 +102,6 @@ resource "aws_subnet" "ce-outside" {
   availability_zone       = each.key
   tags = {
     Name = format("%s-ce-outside-subnet-%s", var.project_prefix, each.key)
-  }
-}
-
-resource "aws_subnet" "ce-inside" {
-  for_each          = toset(var.azs)
-  vpc_id            = module.vpc.vpc_id
-  cidr_block        = module.subnet_addrs[each.key].network_cidr_blocks["ce-inside"]
-  availability_zone = each.key
-  tags = {
-    Name = format("%s-ce-inside-subnet-%s", var.project_prefix, each.key)
-  }
-}
-
-resource "aws_subnet" "ce-workload" {
-  for_each          = toset(var.azs)
-  vpc_id            = module.vpc.vpc_id
-  cidr_block        = module.subnet_addrs[each.key].network_cidr_blocks["ce-workload"]
-  availability_zone = each.key
-  tags = {
-    Name = format("%s-ce-workload-subnet-%s", var.project_prefix, each.key)
   }
 }
 

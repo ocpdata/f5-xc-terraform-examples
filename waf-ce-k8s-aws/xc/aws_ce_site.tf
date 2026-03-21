@@ -32,19 +32,13 @@ resource "volterra_aws_vpc_site" "aws_site" {
   vpc {
     vpc_id=local.vpc_id
   }
-  ingress_egress_gw {
-    aws_certified_hw = "aws-byol-multi-nic-voltmesh"
+  ingress_gw {
+    aws_certified_hw = "aws-byol-voltmesh"
     az_nodes {
       aws_az_name = local.aws_ec2_azs
       disk_size   = 0
-      outside_subnet {
+      local_subnet {
         existing_subnet_id = local.aws_slo_subnet
-      }
-      inside_subnet {
-        existing_subnet_id = local.aws_sli_subnet
-      }
-      workload_subnet {
-        existing_subnet_id = local.aws_workload_subnet
       }
     }
   }

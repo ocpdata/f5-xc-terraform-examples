@@ -86,16 +86,6 @@ output "ce_outside_subnet_az1" {
   value       = values(aws_subnet.ce-outside)[0].id
 }
 
-output "ce_inside_subnet_az1" {
-  description = "ID of CE dedicated inside (SLI) subnet AZ1 - no route table association"
-  value       = values(aws_subnet.ce-inside)[0].id
-}
-
-output "ce_workload_subnet_az1" {
-  description = "ID of CE workload subnet AZ1 - no route table association, required by XC ingress_egress_gw"
-  value       = values(aws_subnet.ce-workload)[0].id
-}
-
 output "external_sg_id" {
   value       = aws_security_group.external.id
 }
