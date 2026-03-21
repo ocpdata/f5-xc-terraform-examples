@@ -71,14 +71,17 @@ variable "bigip" {
   type = bool
 }
 variable "bigip-cis" {
-  type = bool
+  type    = bool
+  default = false
 }
 
 variable "aks-cluster" {
-  type = bool
+  type    = bool
+  default = false
 }
 variable "azure-vm" {
-  type = bool
+  type    = bool
+  default = false
 }
 variable "aws_access_key" {
   description = "AWS Access Key ID"
