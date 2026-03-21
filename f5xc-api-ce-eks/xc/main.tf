@@ -1,7 +1,6 @@
 provider "volterra" {
     url          = var.api_url
     api_p12_file = "./api.p12"
-    p12_password = var.xc_p12_password
 }
 
 # Create a random id if infra is xc vk8s
