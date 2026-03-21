@@ -4,7 +4,7 @@ data "tfe_outputs" "infra" {
 }
 data "tfe_outputs" "eks" {
   organization = var.tf_cloud_organization
-  workspace = "eks"
+  workspace = var.eks_workspace
 }
 
 data "aws_eks_cluster_auth" "auth" {

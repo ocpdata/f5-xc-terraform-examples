@@ -9,3 +9,8 @@ variable "aws_waf_ce" {
   type        = string
   default     = ""
 }
+
+variable "eks_workspace" {
+  type        = string
+  description = "TF Cloud workspace name for EKS"
+}

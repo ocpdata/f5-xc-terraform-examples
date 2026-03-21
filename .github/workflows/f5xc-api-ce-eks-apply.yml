@@ -175,6 +175,8 @@ jobs:
       TF_VAR_tf_cloud_organization: ${{ secrets.TF_CLOUD_ORGANIZATION }}
       TF_VAR_project_prefix: ${{ vars.PROJECT_PREFIX }}
       TF_VAR_aws_region: ${{ vars.AWS_REGION }}
+      TF_VAR_infra_workspace: ${{ vars.TF_CLOUD_WORKSPACE_INFRA }}
+      TF_VAR_eks_workspace: ${{ vars.TF_CLOUD_WORKSPACE_EKS }}
 
     steps:
       - name: Checkout
@@ -228,6 +230,8 @@ jobs:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}
       TF_VAR_tf_cloud_organization: ${{ secrets.TF_CLOUD_ORGANIZATION }}
+      TF_VAR_aws_waf_ce: ${{ vars.TF_CLOUD_WORKSPACE_INFRA }}
+      TF_VAR_eks_workspace: ${{ vars.TF_CLOUD_WORKSPACE_EKS }}
 
     steps:
       - name: Checkout
