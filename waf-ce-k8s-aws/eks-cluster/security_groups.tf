@@ -76,3 +76,14 @@ resource "aws_security_group_rule" "accept_all_traffic" {
   cidr_blocks = ["0.0.0.0/0"]
   security_group_id = aws_eks_cluster.eks-tf.vpc_config[0].cluster_security_group_id
 }
+
+# Allow CE (ce-outside subnet) to reach the Boutique app via NodePort
+resource "aws_security_group_rule" "ce_nodeport_ingress" {
+  description       = "Allow F5 XC CE to reach Boutique app NodePort"
+  type              = "ingress"
+  from_port         = 30019
+  to_port           = 30019
+  protocol          = "tcp"
+  cidr_blocks       = [local.ce_outside_cidr]
+  security_group_id = aws_eks_cluster.eks-tf.vpc_config[0].cluster_security_group_id
+}

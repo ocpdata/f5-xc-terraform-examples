@@ -86,6 +86,11 @@ output "ce_outside_subnet_az1" {
   value       = values(aws_subnet.ce-outside)[0].id
 }
 
+output "ce_outside_cidr_az1" {
+  description = "CIDR of CE dedicated outside (SLO) subnet AZ1"
+  value       = values(aws_subnet.ce-outside)[0].cidr_block
+}
+
 output "external_sg_id" {
   value       = aws_security_group.external.id
 }
