@@ -1,4 +1,4 @@
-name: "F5XC API Security on CE in EKS - Apply"
+name: "Seguridad API en RE para EKS con CE"
 
 # Secrets (Settings > Secrets and variables > Actions > Secrets):
 #   TF_API_TOKEN            - Terraform Cloud user token
