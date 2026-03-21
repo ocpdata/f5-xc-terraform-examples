@@ -7,4 +7,5 @@ variable "tf_cloud_organization" {
 variable "ssh_key" {
   type        = string
   description = "Only present for warning handling with TF cloud variable set"
+  default     = ""
 }
