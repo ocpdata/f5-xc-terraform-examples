@@ -1,10 +1,9 @@
 resource "helm_release" "crapi" {
-  name       = "crapi"
-  chart      = "./helm"
-  namespace  = "crapi"
+  name             = "crapi"
+  chart            = "./helm"
+  namespace        = "crapi"
   create_namespace = true
-  timeout    = 600
-  wait       = true
+  wait             = false
   values = [
     file("./helm/values.yaml")
   ]
