@@ -2,7 +2,6 @@
 
 # Create Elastic IP
 resource "aws_eip" "main" {
-  vpc              = true
   tags = {
     resource_owner = local.resource_owner
     Name          = format("%s-eip-%s", local.project_prefix, local.build_suffix)
