@@ -17,6 +17,13 @@ variable "ssh_key" {
   default     = ""
 }
 
+variable "xc_p12_password" {
+  type        = string
+  description = "Password for the F5 XC API p12 certificate"
+  default     = ""
+  sensitive   = true
+}
+
 #XC
 variable "xc_tenant" {
   type        = string
