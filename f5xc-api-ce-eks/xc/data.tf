@@ -43,7 +43,7 @@ data "tfe_outputs" "gcp-vm" {
 data "tfe_outputs" "eks" {
   count               = var.eks_ce_site ? 1 : 0
   organization        = var.tf_cloud_organization
-  workspace           = "eks"
+  workspace           = var.eks_workspace
 }
 data "tfe_outputs" "aws_eks_cluster" {
   count               = var.aws_ce_site ? 1 : 0

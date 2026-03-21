@@ -398,3 +398,9 @@ variable "aks_workspace" {
   description = "TFC workspace name for AKS Cluster (used to read remote state)"
   default     = "aks-cluster"
 }
+
+variable "eks_workspace" {
+  type        = string
+  description = "TFC workspace name for EKS Cluster (used to read remote state)"
+  default     = "eks"
+}
