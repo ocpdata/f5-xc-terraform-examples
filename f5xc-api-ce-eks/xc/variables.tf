@@ -14,6 +14,7 @@ variable "tf_cloud_organization" {
 variable "ssh_key" {
   type        = string
   description = "SSH pub key, only present for warning handling with TF cloud variable set"
+  default     = ""
 }
 
 #XC
