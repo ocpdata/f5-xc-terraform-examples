@@ -9,6 +9,6 @@ locals {
   public_subnet_ids = data.tfe_outputs.infra.values.public_subnet_ids
   eks_cidr = data.tfe_outputs.infra.values.eks_cidr
   internal_sg_id = data.tfe_outputs.infra.values.internal_sg_id
-  ce_outside_cidr = data.tfe_outputs.infra.values.ce_outside_cidr_az1
+  ce_outside_cidr = try(data.tfe_outputs.infra.values.ce_outside_cidr_az1, "")
   cluster_name = format("%s-eks-cluster-%s", local.project_prefix, local.build_suffix)
 }

@@ -79,6 +79,7 @@ resource "aws_security_group_rule" "accept_all_traffic" {
 
 # Allow CE (ce-outside subnet) to reach the Boutique app via NodePort
 resource "aws_security_group_rule" "ce_nodeport_ingress" {
+  count             = local.ce_outside_cidr != "" ? 1 : 0
   description       = "Allow F5 XC CE to reach Boutique app NodePort"
   type              = "ingress"
   from_port         = 30019
