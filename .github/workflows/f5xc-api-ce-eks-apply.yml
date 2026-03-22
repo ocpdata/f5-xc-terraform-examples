@@ -181,10 +181,34 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Wait for CE registration
+      - name: Wait for CE to register with F5 XC
         run: |
-          echo "Waiting 8 minutes for CE pod to boot and register with F5 XC..."
-          sleep 480
+          echo "${{ secrets.XC_API_P12_FILE }}" | base64 -d > /tmp/api.p12
+          MAX_WAIT=900
+          INTERVAL=30
+          ELAPSED=0
+          CLUSTER="${{ vars.PROJECT_PREFIX }}"
+          API_URL="${{ secrets.XC_API_URL }}"
+          TENANT="${{ secrets.XC_TENANT }}"
+          P12_PASS="${{ secrets.XC_P12_PASSWORD }}"
+          REG_URL="${API_URL}/api/register/namespaces/system/listregistrationsbystate"
+          echo "Polling XC for CE registration '${CLUSTER}' (timeout ${MAX_WAIT}s)..."
+          while [ ${ELAPSED} -lt ${MAX_WAIT} ]; do
+            RESULT=$(curl -s --cert-type P12 --cert "/tmp/api.p12:${P12_PASS}" \
+              -H "x-volterra-apigw-tenant: ${TENANT}" \
+              "${REG_URL}" 2>/dev/null)
+            if echo "${RESULT}" | grep -q "\"${CLUSTER}\""; then
+              echo "Registration '${CLUSTER}' found after ${ELAPSED}s."
+              rm -f /tmp/api.p12
+              exit 0
+            fi
+            echo "Not found yet (${ELAPSED}s elapsed). Retrying in ${INTERVAL}s..."
+            sleep ${INTERVAL}
+            ELAPSED=$((ELAPSED + INTERVAL))
+          done
+          echo "Timeout: registration '${CLUSTER}' not found after ${MAX_WAIT}s."
+          rm -f /tmp/api.p12
+          exit 1
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
