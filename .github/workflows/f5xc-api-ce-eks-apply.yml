@@ -423,6 +423,12 @@ jobs:
       TF_VAR_http_only: "true"
       TF_VAR_xc_api_disc: "true"
       TF_VAR_xc_api_pro: "true"
+      TF_VAR_xc_api_val: "true"
+      TF_VAR_xc_api_val_all: "true"
+      TF_VAR_xc_api_val_active: "true"
+      TF_VAR_enforcement_block: "false"
+      TF_VAR_enforcement_report: "true"
+      TF_VAR_fall_through_mode_allow: "true"
 
     steps:
       - name: Checkout
