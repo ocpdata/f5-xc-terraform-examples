@@ -57,7 +57,7 @@ jobs:
               --header "${AUTH}" \
               "${TFC_API}/organizations/${TF_ORG}/workspaces/${ws_name}" || true)
             if [ -n "${existing}" ]; then
-              echo "Workspace '${ws_name}' already exists — ensuring execution-mode=local"
+              echo "Workspace '${ws_name}' already exists — ensuring execution-mode=local" >&2
               ws_id=$(echo "${existing}" | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['id'])")
               curl -sf \
                 --header "${AUTH}" --header "${CT}" \
@@ -65,7 +65,7 @@ jobs:
                 --data "{\"data\":{\"type\":\"workspaces\",\"attributes\":{\"execution-mode\":\"local\"}}}" \
                 "${TFC_API}/workspaces/${ws_id}" > /dev/null
             else
-              echo "Creating workspace '${ws_name}'"
+              echo "Creating workspace '${ws_name}'" >&2
               response=$(curl -sf \
                 --header "${AUTH}" --header "${CT}" \
                 --request POST \
