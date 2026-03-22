@@ -11,4 +11,4 @@ data:
   WORKSHOP_SERVICE: {{ .Values.workshop.service.name }}:{{ .Values.workshop.port }}
   MAILHOG_WEB_SERVICE: {{ .Values.mailhog.webService.name }}:{{ .Values.mailhog.webPort }}
   TLS_ENABLED: {{ .Values.tlsEnabled | quote }}
-  GATEWAY_SERVICE_URL: {{ .Values.apiGatewayService.service.name }}:{{ .Values.apiGatewayService.port }}
+  CHATBOT_SERVICE: {{ default "localhost:9999" .Values.chatbotService }}
