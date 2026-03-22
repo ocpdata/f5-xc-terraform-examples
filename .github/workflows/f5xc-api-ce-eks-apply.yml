@@ -422,6 +422,7 @@ jobs:
       TF_VAR_user_site: "true"
       TF_VAR_http_only: "true"
       TF_VAR_xc_api_disc: "true"
+      TF_VAR_xc_api_pro: "true"
 
     steps:
       - name: Checkout
@@ -452,6 +453,59 @@ jobs:
           echo "Waiting 12 minutes for CE pod to boot and register with F5 XC..."
           sleep 720
 
+      - name: Upload crAPI OAS spec to XC Object Store
+        id: upload_spec
+        run: |
+          # Extract cert and key from P12
+          openssl pkcs12 -in api.p12 -nocerts -nodes -out api.key \
+            -legacy -passin pass:"${{ secrets.XC_P12_PASSWORD }}" 2>/dev/null
+          openssl pkcs12 -in api.p12 -clcerts -nokeys -out api.crt \
+            -legacy -passin pass:"${{ secrets.XC_P12_PASSWORD }}" 2>/dev/null
+
+          # Download crAPI spec
+          curl -sL https://raw.githubusercontent.com/OWASP/crAPI/develop/openapi-spec/crapi-openapi-spec.json \
+            -o crapi-spec.json
+
+          NAMESPACE="${{ vars.XC_NAMESPACE }}"
+          API_BASE=$(echo "${{ secrets.XC_API_URL }}" | sed 's|/web/workloads.*||;s|/api/.*||')
+          SPEC_NAME="crapi-spec"
+
+          # Check if spec already exists
+          existing=$(curl -sf \
+            --cert api.crt --key api.key \
+            "${API_BASE}/api/object_store/namespaces/${NAMESPACE}/stored_objects/swagger/${SPEC_NAME}" \
+            2>/dev/null || true)
+
+          if [ -z "${existing}" ]; then
+            echo "Uploading crAPI spec to XC Object Store..." >&2
+            BODY=$(python3 -c "
+          import json, sys
+          content = open('crapi-spec.json').read()
+          print(json.dumps({'metadata': {'name': '${SPEC_NAME}', 'namespace': '${NAMESPACE}'}, 'spec': {'content': content}}))
+          ")
+            curl -sf -X POST \
+              --cert api.crt --key api.key \
+              -H "Content-Type: application/json" \
+              "${API_BASE}/api/object_store/namespaces/${NAMESPACE}/stored_objects/swagger" \
+              -d "${BODY}" > /dev/null
+          else
+            echo "Spec '${SPEC_NAME}' already exists in XC Object Store" >&2
+          fi
+
+          # Get spec URL from object store
+          SPEC_URL=$(curl -sf \
+            --cert api.crt --key api.key \
+            "${API_BASE}/api/object_store/namespaces/${NAMESPACE}/stored_objects/swagger/${SPEC_NAME}" \
+            | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          versions = data.get('spec', {}).get('all_versions', [])
+          latest = sorted(versions)[-1] if versions else 'v1'
+          print(f'${API_BASE}/api/object_store/namespaces/${NAMESPACE}/stored_objects/swagger/${SPEC_NAME}/{latest}')
+          ")
+          echo "SPEC_URL=${SPEC_URL}" >> $GITHUB_OUTPUT
+          echo "spec_url=${SPEC_URL}" >&2
+
       - name: Terraform Init
         id: init
         run: terraform init
@@ -465,4 +519,6 @@ jobs:
         run: terraform plan -no-color -input=false
 
       - name: Terraform Apply
-        run: terraform apply -auto-approve -input=false
+        run: |
+          terraform apply -auto-approve -input=false \
+            -var='xc_api_spec=["${{ steps.upload_spec.outputs.SPEC_URL }}"]'
