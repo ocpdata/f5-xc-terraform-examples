@@ -184,22 +184,24 @@ jobs:
       - name: Wait for CE to register with F5 XC
         run: |
           echo "${{ secrets.XC_API_P12_FILE }}" | base64 -d > /tmp/api.p12
+          P12_PASS="${{ secrets.XC_P12_PASSWORD }}"
+          openssl pkcs12 -in /tmp/api.p12 -nokeys -clcerts -out /tmp/api.crt -passin pass:"${P12_PASS}" 2>/dev/null
+          openssl pkcs12 -in /tmp/api.p12 -nocerts -nodes -out /tmp/api.key -passin pass:"${P12_PASS}" 2>/dev/null
           MAX_WAIT=900
           INTERVAL=30
           ELAPSED=0
           CLUSTER="${{ vars.PROJECT_PREFIX }}"
           API_URL="${{ secrets.XC_API_URL }}"
           TENANT="${{ secrets.XC_TENANT }}"
-          P12_PASS="${{ secrets.XC_P12_PASSWORD }}"
           REG_URL="${API_URL}/api/register/namespaces/system/listregistrationsbystate"
           echo "Polling XC for CE registration '${CLUSTER}' (timeout ${MAX_WAIT}s)..."
           while [ ${ELAPSED} -lt ${MAX_WAIT} ]; do
-            RESULT=$(curl -s --cert-type P12 --cert "/tmp/api.p12:${P12_PASS}" \
+            RESULT=$(curl -s --cert /tmp/api.crt --key /tmp/api.key \
               -H "x-volterra-apigw-tenant: ${TENANT}" \
               "${REG_URL}" 2>/dev/null)
             if echo "${RESULT}" | grep -q "\"${CLUSTER}\""; then
               echo "Registration '${CLUSTER}' found after ${ELAPSED}s."
-              rm -f /tmp/api.p12
+              rm -f /tmp/api.p12 /tmp/api.crt /tmp/api.key
               exit 0
             fi
             echo "Not found yet (${ELAPSED}s elapsed). Retrying in ${INTERVAL}s..."
@@ -207,7 +209,7 @@ jobs:
             ELAPSED=$((ELAPSED + INTERVAL))
           done
           echo "Timeout: registration '${CLUSTER}' not found after ${MAX_WAIT}s."
-          rm -f /tmp/api.p12
+          rm -f /tmp/api.p12 /tmp/api.crt /tmp/api.key
           exit 1
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
