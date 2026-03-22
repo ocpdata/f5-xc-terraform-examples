@@ -8,11 +8,94 @@ on:
 
 jobs:
   # -------------------------------------------------------
+  # Job 0: Ensure TFC Workspaces exist with Remote State Sharing
+  # -------------------------------------------------------
+  setup_tfc_workspaces:
+    name: "Setup TFC Workspaces"
+    runs-on: ubuntu-latest
+    env:
+      TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
+      TF_ORG: ${{ secrets.TF_CLOUD_ORGANIZATION }}
+      WS_INFRA: ${{ vars.TF_CLOUD_WORKSPACE_INFRA }}
+      WS_EKS: ${{ vars.TF_CLOUD_WORKSPACE_EKS }}
+      WS_CRAPI: ${{ vars.TF_CLOUD_WORKSPACE_CRAPI }}
+      WS_CE: ${{ vars.TF_CLOUD_WORKSPACE_CE }}
+      WS_XC: ${{ vars.TF_CLOUD_WORKSPACE_XC }}
+    steps:
+      - name: Create workspaces and configure Remote State Sharing
+        run: |
+          TFC_API="https://app.terraform.io/api/v2"
+          AUTH="Authorization: Bearer ${TF_API_TOKEN}"
+          CT="Content-Type: application/vnd.api+json"
+
+          create_or_update_workspace() {
+            local ws_name=$1
+            existing=$(curl -sf \
+              --header "${AUTH}" \
+              "${TFC_API}/organizations/${TF_ORG}/workspaces/${ws_name}" || true)
+            if [ -n "${existing}" ]; then
+              echo "Workspace '${ws_name}' already exists — ensuring execution-mode=local"
+              ws_id=$(echo "${existing}" | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['id'])")
+              curl -sf \
+                --header "${AUTH}" --header "${CT}" \
+                --request PATCH \
+                --data "{\"data\":{\"type\":\"workspaces\",\"attributes\":{\"execution-mode\":\"local\"}}}" \
+                "${TFC_API}/workspaces/${ws_id}" > /dev/null
+            else
+              echo "Creating workspace '${ws_name}'"
+              response=$(curl -sf \
+                --header "${AUTH}" --header "${CT}" \
+                --request POST \
+                --data "{\"data\":{\"type\":\"workspaces\",\"attributes\":{\"name\":\"${ws_name}\",\"execution-mode\":\"local\",\"global-remote-state\":false}}}" \
+                "${TFC_API}/organizations/${TF_ORG}/workspaces")
+              ws_id=$(echo "${response}" | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['id'])")
+            fi
+            echo "${ws_id}"
+          }
+
+          add_remote_state_consumer() {
+            local producer_id=$1
+            local consumer_id=$2
+            http_code=$(curl -s -o /dev/null -w "%{http_code}" \
+              --header "${AUTH}" --header "${CT}" \
+              --request POST \
+              --data "{\"data\":[{\"id\":\"${consumer_id}\",\"type\":\"workspaces\"}]}" \
+              "${TFC_API}/workspaces/${producer_id}/relationships/remote-state-consumers")
+            if [ "${http_code}" = "204" ] || [ "${http_code}" = "422" ]; then
+              echo "  remote-state-consumer ok (${http_code})"
+            else
+              echo "  ERROR adding remote-state-consumer: HTTP ${http_code}" && exit 1
+            fi
+          }
+
+          echo "=== Creating / updating workspaces ==="
+          ID_INFRA=$(create_or_update_workspace "${WS_INFRA}")
+          echo "  INFRA  -> ${ID_INFRA}"
+          ID_EKS=$(create_or_update_workspace "${WS_EKS}")
+          echo "  EKS    -> ${ID_EKS}"
+          ID_CRAPI=$(create_or_update_workspace "${WS_CRAPI}")
+          echo "  CRAPI  -> ${ID_CRAPI}"
+          ID_CE=$(create_or_update_workspace "${WS_CE}")
+          echo "  CE     -> ${ID_CE}"
+          ID_XC=$(create_or_update_workspace "${WS_XC}")
+          echo "  XC     -> ${ID_XC}"
+
+          echo "=== Configuring Remote State Sharing ==="
+          echo "INFRA -> EKS:";   add_remote_state_consumer "${ID_INFRA}" "${ID_EKS}"
+          echo "INFRA -> CRAPI:"; add_remote_state_consumer "${ID_INFRA}" "${ID_CRAPI}"
+          echo "INFRA -> CE:";    add_remote_state_consumer "${ID_INFRA}" "${ID_CE}"
+          echo "INFRA -> XC:";    add_remote_state_consumer "${ID_INFRA}" "${ID_XC}"
+          echo "EKS -> CRAPI:";   add_remote_state_consumer "${ID_EKS}" "${ID_CRAPI}"
+          echo "EKS -> CE:";      add_remote_state_consumer "${ID_EKS}" "${ID_CE}"
+          echo "EKS -> XC:";      add_remote_state_consumer "${ID_EKS}" "${ID_XC}"
+
+  # -------------------------------------------------------
   # Job 1: Destroy F5 XC API Security (XC objects first)
   # -------------------------------------------------------
   terraform_xc:
     name: "Destroy F5XC API Security"
     runs-on: ubuntu-latest
+    needs: setup_tfc_workspaces
     defaults:
       run:
         working-directory: ./f5xc-api-ce-eks/xc
