@@ -185,8 +185,15 @@ jobs:
         run: |
           echo "${{ secrets.XC_API_P12_FILE }}" | base64 -d > /tmp/api.p12
           P12_PASS="${{ secrets.XC_P12_PASSWORD }}"
-          openssl pkcs12 -in /tmp/api.p12 -nokeys -clcerts -out /tmp/api.crt -passin pass:"${P12_PASS}" 2>/dev/null
-          openssl pkcs12 -in /tmp/api.p12 -nocerts -nodes -out /tmp/api.key -passin pass:"${P12_PASS}" 2>/dev/null
+          # OpenSSL 3.x (Ubuntu 22.04+) needs -legacy for older P12 formats
+          openssl pkcs12 -legacy -in /tmp/api.p12 -nokeys -clcerts -out /tmp/api.crt -passin pass:"${P12_PASS}" 2>/dev/null || \
+          openssl pkcs12         -in /tmp/api.p12 -nokeys -clcerts -out /tmp/api.crt -passin pass:"${P12_PASS}" 2>/dev/null
+          openssl pkcs12 -legacy -in /tmp/api.p12 -nocerts -nodes -out /tmp/api.key -passin pass:"${P12_PASS}" 2>/dev/null || \
+          openssl pkcs12         -in /tmp/api.p12 -nocerts -nodes -out /tmp/api.key -passin pass:"${P12_PASS}" 2>/dev/null
+          if [ ! -s /tmp/api.crt ] || [ ! -s /tmp/api.key ]; then
+            echo "ERROR: Failed to extract cert/key from P12. Check XC_API_P12_FILE and XC_P12_PASSWORD secrets."
+            exit 1
+          fi
           MAX_WAIT=900
           INTERVAL=30
           ELAPSED=0
