@@ -192,8 +192,8 @@ resource "volterra_http_loadbalancer" "lb_https" {
     for_each = var.xc_api_pro ? [1] : []
     content {
       api_definition {
-        name      = data.volterra_api_definition.api-def[0].name
-        namespace = data.volterra_api_definition.api-def[0].namespace
+        name      = var.xc_api_def_name
+        namespace = var.xc_namespace
         tenant    = var.xc_tenant
       }
       validation_disabled = var.xc_api_val ? false : true
@@ -324,7 +324,7 @@ resource "volterra_http_loadbalancer" "lb_https" {
           deny = true
         }
         base_path = "/api"
-        api_group = join("-", ["ves-io-api-def", data.volterra_api_definition.api-def[0].name, "all-operations"])
+        api_group = join("-", ["ves-io-api-def", var.xc_api_def_name, "all-operations"])
       }
       api_groups_rules {
         metadata {
