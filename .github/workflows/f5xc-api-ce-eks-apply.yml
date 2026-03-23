@@ -487,19 +487,16 @@ jobs:
             echo "Spec '${SPEC_NAME}' already exists in XC Object Store" >&2
           else
             echo "Uploading crAPI spec to XC Object Store (HTTP ${http_code})..." >&2
-            BODY=$(python3 -c "
-import json
-content = open('crapi-spec.json').read()
-print(json.dumps({
-  'metadata': {'name': '${SPEC_NAME}', 'namespace': '${NAMESPACE}'},
-  'spec': {'contents': content}
-}))
-")
+            jq -n \
+              --arg name "${SPEC_NAME}" \
+              --arg ns "${NAMESPACE}" \
+              --rawfile content crapi-spec.json \
+              '{metadata: {name: $name, namespace: $ns}, spec: {contents: $content}}' > body.json
             response=$(curl -s -w "\n%{http_code}" -X POST \
               --cert api.crt --key api.key \
               -H "Content-Type: application/json" \
               "${SPEC_ENDPOINT}" \
-              -d "${BODY}")
+              -d @body.json)
             resp_code=$(echo "${response}" | tail -1)
             resp_body=$(echo "${response}" | head -1)
             echo "Upload response HTTP ${resp_code}: ${resp_body}" >&2
@@ -510,19 +507,11 @@ print(json.dumps({
           fi
 
           # Get latest version URL
-          SPEC_DATA=$(curl -sf \
+          SPEC_URL=$(curl -sf \
             --cert api.crt --key api.key \
-            "${SPEC_ENDPOINT}/${SPEC_NAME}")
-          SPEC_URL=$(echo "${SPEC_DATA}" | python3 -c "
-import sys, json
-data = json.load(sys.stdin)
-versions = data.get('spec', {}).get('all_versions', [])
-latest = sorted(versions)[-1] if versions else 'v1'
-ns = '${NAMESPACE}'
-base = '${API_BASE}'
-name = '${SPEC_NAME}'
-print(f'{base}/api/object_store/namespaces/{ns}/stored_objects/swagger/{name}/{latest}')
-")
+            "${SPEC_ENDPOINT}/${SPEC_NAME}" \
+            | jq -r --arg base "${API_BASE}" --arg ns "${NAMESPACE}" --arg name "${SPEC_NAME}" \
+              '(.spec.all_versions // ["v1"]) | sort | last | "\($base)/api/object_store/namespaces/\($ns)/stored_objects/swagger/\($name)/\(.)"')
           echo "SPEC_URL=${SPEC_URL}" >> $GITHUB_OUTPUT
           echo "spec_url=${SPEC_URL}" >&2
 
