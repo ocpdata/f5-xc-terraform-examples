@@ -473,8 +473,8 @@ jobs:
             -o crapi-spec.json
 
           NAMESPACE="${{ vars.XC_NAMESPACE }}"
-          # Build API base from tenant name (XC_API_URL format: https://<tenant>.console.ves.voltera.io/...)
-          API_BASE="https://${{ secrets.XC_TENANT }}.console.ves.voltera.io"
+          # Build API base from tenant name
+          API_BASE="https://${{ secrets.XC_TENANT }}.console.ves.volterra.io"
           SPEC_NAME="crapi-spec"
           SPEC_ENDPOINT="${API_BASE}/api/object_store/namespaces/${NAMESPACE}/stored_objects/swagger"
 
