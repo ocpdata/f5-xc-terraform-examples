@@ -422,7 +422,6 @@ jobs:
       TF_VAR_user_site: "true"
       TF_VAR_http_only: "true"
       TF_VAR_xc_api_disc: "true"
-      TF_VAR_xc_api_pro: "true"
       TF_VAR_xc_api_val: "true"
       TF_VAR_xc_api_val_all: "true"
       TF_VAR_xc_api_val_active: "true"
@@ -462,58 +461,17 @@ jobs:
       - name: Upload crAPI OAS spec to XC Object Store
         id: upload_spec
         run: |
-          # Extract cert and key from P12
-          openssl pkcs12 -in api.p12 -nocerts -nodes -out api.key \
-            -legacy -passin pass:"${{ secrets.XC_P12_PASSWORD }}" 2>/dev/null
-          openssl pkcs12 -in api.p12 -clcerts -nokeys -out api.crt \
-            -legacy -passin pass:"${{ secrets.XC_P12_PASSWORD }}" 2>/dev/null
-
-          # Download crAPI spec
-          curl -sL https://raw.githubusercontent.com/OWASP/crAPI/develop/openapi-spec/crapi-openapi-spec.json \
-            -o crapi-spec.json
-
-          NAMESPACE="${{ vars.XC_NAMESPACE }}"
-          # Build API base from tenant name
-          API_BASE="https://${{ secrets.XC_TENANT }}.console.ves.volterra.io"
-          SPEC_NAME="crapi-spec"
-          SPEC_ENDPOINT="${API_BASE}/api/object_store/namespaces/${NAMESPACE}/stored_objects/swagger"
-
-          # Check if spec already exists
-          http_code=$(curl -s -o /dev/null -w "%{http_code}" \
-            --cert api.crt --key api.key \
-            "${SPEC_ENDPOINT}/${SPEC_NAME}")
-
-          if [ "${http_code}" = "200" ]; then
-            echo "Spec '${SPEC_NAME}' already exists in XC Object Store" >&2
+          # XC Object Store does not expose a public POST endpoint for swagger files.
+          # Upload the spec manually via XC Console:
+          #   Shared Configuration -> Security -> API Management -> Swagger Files -> Add
+          # Then set the resulting URL as GitHub variable XC_API_SPEC_URL.
+          SPEC_URL="${{ vars.XC_API_SPEC_URL }}"
+          if [ -z "${SPEC_URL}" ]; then
+            echo "WARNING: XC_API_SPEC_URL not set — API Protection will be skipped" >&2
           else
-            echo "Uploading crAPI spec to XC Object Store (HTTP ${http_code})..." >&2
-            jq -n \
-              --arg name "${SPEC_NAME}" \
-              --arg ns "${NAMESPACE}" \
-              --rawfile content crapi-spec.json \
-              '{metadata: {name: $name, namespace: $ns}, spec: {contents: $content}}' > body.json
-            response=$(curl -s -w "\n%{http_code}" -X POST \
-              --cert api.crt --key api.key \
-              -H "Content-Type: application/json" \
-              "${SPEC_ENDPOINT}" \
-              -d @body.json)
-            resp_code=$(echo "${response}" | tail -1)
-            resp_body=$(echo "${response}" | head -1)
-            echo "Upload response HTTP ${resp_code}: ${resp_body}" >&2
-            if [ "${resp_code}" != "200" ] && [ "${resp_code}" != "201" ]; then
-              echo "ERROR: Failed to upload spec (HTTP ${resp_code})" >&2
-              exit 1
-            fi
+            echo "Using spec URL: ${SPEC_URL}" >&2
           fi
-
-          # Get latest version URL
-          SPEC_URL=$(curl -sf \
-            --cert api.crt --key api.key \
-            "${SPEC_ENDPOINT}/${SPEC_NAME}" \
-            | jq -r --arg base "${API_BASE}" --arg ns "${NAMESPACE}" --arg name "${SPEC_NAME}" \
-              '(.spec.all_versions // ["v1"]) | sort | last | "\($base)/api/object_store/namespaces/\($ns)/stored_objects/swagger/\($name)/\(.)"')
           echo "SPEC_URL=${SPEC_URL}" >> $GITHUB_OUTPUT
-          echo "spec_url=${SPEC_URL}" >&2
 
       - name: Terraform Init
         id: init
@@ -529,5 +487,12 @@ jobs:
 
       - name: Terraform Apply
         run: |
-          terraform apply -auto-approve -input=false \
-            -var='xc_api_spec=["${{ steps.upload_spec.outputs.SPEC_URL }}"]'
+          SPEC_URL="${{ steps.upload_spec.outputs.SPEC_URL }}"
+          if [ -n "${SPEC_URL}" ]; then
+            terraform apply -auto-approve -input=false \
+              -var="xc_api_pro=true" \
+              -var="xc_api_spec=[\"${SPEC_URL}\"]"
+          else
+            terraform apply -auto-approve -input=false \
+              -var="xc_api_pro=false"
+          fi
