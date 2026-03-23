@@ -458,20 +458,20 @@ jobs:
           echo "Waiting 12 minutes for CE pod to boot and register with F5 XC..."
           sleep 720
 
-      - name: Upload crAPI OAS spec to XC Object Store
+      - name: Resolve crAPI spec URL
         id: upload_spec
         run: |
-          # XC Object Store does not expose a public POST endpoint for swagger files.
-          # Upload the spec manually via XC Console:
-          #   Shared Configuration -> Security -> API Management -> Swagger Files -> Add
-          # Then set the resulting URL as GitHub variable XC_API_SPEC_URL.
-          SPEC_URL="${{ vars.XC_API_SPEC_URL }}"
-          if [ -z "${SPEC_URL}" ]; then
-            echo "WARNING: XC_API_SPEC_URL not set — API Protection will be skipped" >&2
+          # Use XC_API_SPEC_URL if set (XC Object Store URL from manual upload),
+          # otherwise fall back to the public GitHub raw URL.
+          if [ -n "${{ vars.XC_API_SPEC_URL }}" ]; then
+            SPEC_URL="${{ vars.XC_API_SPEC_URL }}"
+            echo "Using XC Object Store spec URL" >&2
           else
-            echo "Using spec URL: ${SPEC_URL}" >&2
+            SPEC_URL="https://raw.githubusercontent.com/OWASP/crAPI/develop/openapi-spec/crapi-openapi-spec.json"
+            echo "Using public GitHub spec URL (fallback)" >&2
           fi
           echo "SPEC_URL=${SPEC_URL}" >> $GITHUB_OUTPUT
+          echo "spec_url=${SPEC_URL}" >&2
 
       - name: Terraform Init
         id: init
@@ -487,12 +487,6 @@ jobs:
 
       - name: Terraform Apply
         run: |
-          SPEC_URL="${{ steps.upload_spec.outputs.SPEC_URL }}"
-          if [ -n "${SPEC_URL}" ]; then
-            terraform apply -auto-approve -input=false \
-              -var="xc_api_pro=true" \
-              -var="xc_api_spec=[\"${SPEC_URL}\"]"
-          else
-            terraform apply -auto-approve -input=false \
-              -var="xc_api_pro=false"
-          fi
+          terraform apply -auto-approve -input=false \
+            -var="xc_api_pro=true" \
+            -var="xc_api_spec=[\"${{ steps.upload_spec.outputs.SPEC_URL }}\"]"
