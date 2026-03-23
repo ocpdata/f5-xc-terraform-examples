@@ -458,21 +458,6 @@ jobs:
           echo "Waiting 12 minutes for CE pod to boot and register with F5 XC..."
           sleep 720
 
-      - name: Resolve crAPI spec URL
-        id: upload_spec
-        run: |
-          # Use XC_API_SPEC_URL if set (XC Object Store URL from manual upload),
-          # otherwise fall back to the public GitHub raw URL.
-          if [ -n "${{ vars.XC_API_SPEC_URL }}" ]; then
-            SPEC_URL="${{ vars.XC_API_SPEC_URL }}"
-            echo "Using XC Object Store spec URL" >&2
-          else
-            SPEC_URL="https://raw.githubusercontent.com/OWASP/crAPI/develop/openapi-spec/crapi-openapi-spec.json"
-            echo "Using public GitHub spec URL (fallback)" >&2
-          fi
-          echo "SPEC_URL=${SPEC_URL}" >> $GITHUB_OUTPUT
-          echo "spec_url=${SPEC_URL}" >&2
-
       - name: Terraform Init
         id: init
         run: terraform init
@@ -488,5 +473,4 @@ jobs:
       - name: Terraform Apply
         run: |
           terraform apply -auto-approve -input=false \
-            -var="xc_api_pro=true" \
-            -var="xc_api_spec=[\"${{ steps.upload_spec.outputs.SPEC_URL }}\"]"
+            -var="xc_api_pro=true"

@@ -84,10 +84,10 @@ variable "xc_api_pro" {
   default     = "false"
 }
 
-variable "xc_api_spec" {
-  type        = list(any)
-  description = "XC object store path to swagger spec ex: https://my.tenant.domain/api/object_store/namespaces/my-ns/stored_objects/swagger/file-name/v1-22-01-12"
-  default     = null
+variable "xc_api_def_name" {
+  type        = string
+  description = "Name of an existing XC API Definition object (pre-created via console) to use for API Protection"
+  default     = "crapi"
 }
 
 variable "xc_api_val" {
