@@ -400,6 +400,68 @@ jobs:
             sleep 15
           done
 
+      - name: Clean up orphaned XC objects
+        run: |
+          openssl pkcs12 -legacy -in api.p12 -passin pass:"${VES_P12_PASSWORD}" -nokeys -clcerts -out /tmp/client.crt
+          openssl pkcs12 -legacy -in api.p12 -passin pass:"${VES_P12_PASSWORD}" -nocerts -nodes -out /tmp/client.key
+
+          if [ ! -s /tmp/client.crt ] || [ ! -s /tmp/client.key ]; then
+            echo "ERROR: Failed to extract cert/key from P12"
+            exit 1
+          fi
+
+          XC_API_BASE="${VOLT_API_URL%/}"
+          STATE_LIST="$(terraform state list 2>/dev/null || true)"
+
+          cleanup_orphan() {
+            local resource_address="$1"
+            local namespace="$2"
+            local collection="$3"
+            local name="$4"
+            local object_url="${XC_API_BASE}/public/namespaces/${namespace}/${collection}/${name}"
+            local http_code
+
+            if printf '%s\n' "$STATE_LIST" | grep -Fxq "$resource_address"; then
+              echo "State already manages ${resource_address}; skipping cleanup."
+              return 0
+            fi
+
+            http_code=$(curl -s -o /tmp/xc_object_response.json -w "%{http_code}" \
+              --cert /tmp/client.crt \
+              --key /tmp/client.key \
+              "${object_url}")
+
+            if [ "$http_code" = "404" ]; then
+              echo "No orphaned object at ${object_url}."
+              return 0
+            fi
+
+            if [ "$http_code" != "200" ]; then
+              echo "ERROR: Failed to query ${object_url} (HTTP ${http_code})"
+              cat /tmp/xc_object_response.json
+              exit 1
+            fi
+
+            echo "Deleting orphaned object for ${resource_address}: ${object_url}"
+            http_code=$(curl -s -o /tmp/xc_object_response.json -w "%{http_code}" \
+              --cert /tmp/client.crt \
+              --key /tmp/client.key \
+              -X DELETE \
+              "${object_url}")
+
+            if [ "$http_code" != "200" ] && [ "$http_code" != "202" ] && [ "$http_code" != "204" ] && [ "$http_code" != "404" ]; then
+              echo "ERROR: Failed to delete orphaned object at ${object_url} (HTTP ${http_code})"
+              cat /tmp/xc_object_response.json
+              exit 1
+            fi
+          }
+
+          cleanup_orphan "volterra_tcp_loadbalancer.azure_ssh_access" "default" "tcp_loadbalancers" "azure-${TF_VAR_prefix:+${TF_VAR_prefix}-}${TF_VAR_name}-ssh"
+          cleanup_orphan "volterra_origin_pool.azure_ssh_access" "default" "origin_pools" "azure-${TF_VAR_prefix:+${TF_VAR_prefix}-}${TF_VAR_name}-ssh"
+          cleanup_orphan "volterra_virtual_network.global_vn" "system" "virtual_networks" "${TF_VAR_prefix:+${TF_VAR_prefix}-}${TF_VAR_name}-gn"
+
+          rm -f /tmp/client.crt /tmp/client.key /tmp/xc_object_response.json
+
       - name: Terraform Validate
         id: validate
         run: terraform validate -no-color
