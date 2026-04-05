@@ -479,7 +479,34 @@ jobs:
 
       - name: Patch aws-vpc-site module for provider schema
         run: |
-          perl -0pi -e 's/performance_enhancement_mode \{\n(\s*)perf_mode_l7_enhanced = \(null == var\.jumbo\)\n\n(\s*dynamic "perf_mode_l3_enhanced")/performance_enhancement_mode {\n$1dynamic "perf_mode_l7_enhanced" {\n$1  for_each = (null == var.jumbo) ? [0] : []\n$1  content {\n$1    jumbo_enabled = true\n$1  }\n$1}\n\n$2/gs' .terraform/modules/aws_vpc_site/main.tf
+          python - <<'PY'
+          from pathlib import Path
+
+          module_file = Path('.terraform/modules/aws_vpc_site/main.tf')
+          old = '        perf_mode_l7_enhanced = (null == var.jumbo)'
+          new = '\n'.join([
+              '        dynamic "perf_mode_l7_enhanced" {',
+              '          for_each = (null == var.jumbo) ? [0] : []',
+              '          content {',
+              '            jumbo_enabled = true',
+              '          }',
+              '        }',
+          ])
+
+          text = module_file.read_text()
+          occurrences = text.count(old)
+          if occurrences != 2:
+              raise SystemExit(f'Expected 2 legacy perf_mode_l7_enhanced occurrences, found {occurrences}')
+
+          module_file.write_text(text.replace(old, new))
+          PY
+
+      - name: Verify aws-vpc-site module patch
+        run: |
+          if grep -q 'perf_mode_l7_enhanced = (null == var.jumbo)' .terraform/modules/aws_vpc_site/main.tf; then
+            echo "Legacy perf_mode_l7_enhanced argument still present"
+            exit 1
+          fi
       
       - name: Terraform Validate
         id: validate
