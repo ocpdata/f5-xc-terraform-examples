@@ -63,11 +63,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
-        with:
-          repository: f5devcentral/f5-xc-terraform-examples
           
       - id: apply_variables 
-        uses: "f5devcentral/f5-xc-terraform-examples/.github/actions/apply-variables@main" 
+        uses: "./.github/actions/apply-variables" 
         with: 
           vars_json: "${{ toJSON(vars) }}" 
           vars_prefix: "AWSVS_TF_VAR_"
@@ -98,6 +96,10 @@ jobs:
       - name: Terraform Init
         id: init
         run: terraform init
+
+      - name: Patch aws-vpc-site module for provider schema
+        run: |
+          perl -0pi -e 's/performance_enhancement_mode \{\n(\s*)perf_mode_l7_enhanced = \(null == var\.jumbo\)\n\n(\s*dynamic "perf_mode_l3_enhanced")/performance_enhancement_mode {\n$1dynamic "perf_mode_l7_enhanced" {\n$1  for_each = (null == var.jumbo) ? [0] : []\n$1  content {\n$1    jumbo_enabled = true\n$1  }\n$1}\n\n$2/gs' .terraform/modules/aws_vpc_site/main.tf
 
       - name: Terraform Destroy
         id: destroy
