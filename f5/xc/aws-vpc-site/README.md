@@ -1,5 +1,10 @@
 # F5 Distributed Cloud AWS VPC Site
 
+This wrapper pins the `volterra` provider to `0.11.26` because the published
+`f5devcentral/aws-vpc-site/xc` `0.0.12` module is not compatible with newer
+provider releases that expect `perf_mode_l7_enhanced` as a block instead of an
+argument.
+
 ## Prerequisites
 
 ### For CI/CD
