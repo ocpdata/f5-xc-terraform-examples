@@ -48,6 +48,11 @@ on:
         description: "Local Subnets"
         required: true
         default: "[\"172.10.11.0/24\"]"
+      AZURE_XC_MACHINE_TYPE:
+        description: "Azure XC Machine Type"
+        required: false
+        default: "Standard_D4s_v4"
+        type: string
       TF_VAR_az_cloud_credentials_name:
         description: "Existing Azure Cloud Credentials Name"
         required: false
@@ -112,6 +117,10 @@ on:
         type: string
       TF_VAR_azure_rg_name:
         description: "Azure Resource Group Name"
+        required: false
+        type: string
+      AZURE_XC_MACHINE_TYPE:
+        description: "Azure XC Machine Type"
         required: false
         type: string
       TF_VAR_machine_type:
@@ -331,6 +340,7 @@ env:
   TF_VAR_ssh_key: ""
   TF_VAR_azure_rg_location: ""
   TF_VAR_azure_rg_name: ""
+  AZURE_XC_MACHINE_TYPE: ""
   TF_VAR_machine_type: ""
   TF_VAR_az_cloud_credentials_name: ""
   TF_VAR_az_cloud_credentials_namespace: ""
@@ -378,6 +388,7 @@ jobs:
       ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_machine_type: ${{ inputs.AZURE_XC_MACHINE_TYPE || inputs.TF_VAR_machine_type || vars.AZURE_XC_MACHINE_TYPE || '' }}
       TF_VAR_az_cloud_credentials_name: ${{ secrets.XC_AZURE_CLOUD_CREDENTIALS_NAME }}
     outputs:
       name: ${{ steps.output_vars.outputs.name }}

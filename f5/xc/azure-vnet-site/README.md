@@ -72,7 +72,7 @@ The full input parameters list can be found in the [azure-vnet-site module input
   | ssh_key                                  |                       | SSH key                                          |
   | azure_rg_location                        |                       | Azure resource group location                    |
   | azure_rg_name                            |                       | Azure resource group name                        |
-  | machine_type                             | Standard_D3_v2        | Machine type                                     |
+  | machine_type                             | Standard_D4s_v4       | Machine type                                     |
   | az_cloud_credentials_name                |                       | Name of the Azure cloud credentials              |
   | az_cloud_credentials_namespace           |                       | Namespace of the Azure cloud credentials         |
   | az_cloud_credentials_tenant              |                       | Tenant of the Azure cloud credentials            |
