@@ -108,20 +108,51 @@ jobs:
       - name: Delete XC Namespace
         continue-on-error: true
         run: |
-          XC_API_BASE=$(echo "${{ secrets.XC_API_URL }}" | sed 's|/api$||')
-          # Extract cert and key from P12 for curl (use -legacy for OpenSSL 3.x compatibility)
-          openssl pkcs12 -legacy -in api.p12 -passin pass:"${{ secrets.XC_P12_PASSWORD }}" -nokeys -clcerts -out /tmp/client.crt
-          openssl pkcs12 -legacy -in api.p12 -passin pass:"${{ secrets.XC_P12_PASSWORD }}" -nocerts -nodes -out /tmp/client.key
-          if [ ! -s /tmp/client.crt ] || [ ! -s /tmp/client.key ]; then
-            echo "ERROR: Failed to extract cert/key from P12"
-            exit 1
-          fi
-          HTTP_CODE=$(curl -s -o /tmp/ns_del_response.json -w "%{http_code}" \
-            --cert /tmp/client.crt \
-            --key /tmp/client.key \
+          set -euo pipefail
+          XC_API_BASE="${{ secrets.XC_API_URL }}"
+          XC_API_BASE="${XC_API_BASE%/}"
+          XC_API_BASE="${XC_API_BASE%/api}"
+          XC_DELETE_URL="${XC_API_BASE}/api/web/namespaces/${{ vars.XC_NAMESPACE }}"
+
+          CURL_EXIT=0
+          HTTP_CODE=$(curl --http1.1 --silent --show-error \
+            --retry 3 --retry-all-errors --retry-delay 2 \
+            --connect-timeout 20 --max-time 120 \
+            --cert-type P12 --cert "api.p12:${{ secrets.XC_P12_PASSWORD }}" \
+            -o /tmp/ns_del_response.json -w "%{http_code}" \
             -X DELETE \
-            "${XC_API_BASE}/api/web/namespaces/${{ vars.XC_NAMESPACE }}")
-          rm -f /tmp/client.crt /tmp/client.key
+            "${XC_DELETE_URL}") || CURL_EXIT=$?
+
+          if [ "${CURL_EXIT}" -ne 0 ]; then
+            echo "WARN: curl with PKCS#12 failed (exit ${CURL_EXIT}); retrying with extracted cert/key"
+
+            openssl pkcs12 -legacy -in api.p12 -passin pass:"${{ secrets.XC_P12_PASSWORD }}" -nokeys -clcerts -out /tmp/client.crt
+            openssl pkcs12 -legacy -in api.p12 -passin pass:"${{ secrets.XC_P12_PASSWORD }}" -nocerts -nodes -out /tmp/client.key
+            if [ ! -s /tmp/client.crt ] || [ ! -s /tmp/client.key ]; then
+              echo "ERROR: Failed to extract cert/key from P12"
+              exit 1
+            fi
+
+            CURL_EXIT=0
+            HTTP_CODE=$(curl --http1.1 --silent --show-error \
+              --retry 3 --retry-all-errors --retry-delay 2 \
+              --connect-timeout 20 --max-time 120 \
+              --cert /tmp/client.crt --key /tmp/client.key \
+              -o /tmp/ns_del_response.json -w "%{http_code}" \
+              -X DELETE \
+              "${XC_DELETE_URL}") || CURL_EXIT=$?
+
+            rm -f /tmp/client.crt /tmp/client.key
+
+            if [ "${CURL_EXIT}" -ne 0 ]; then
+              echo "ERROR: curl failed while deleting namespace (exit ${CURL_EXIT})"
+              if [ "${CURL_EXIT}" -eq 56 ]; then
+                echo "HINT: curl exit 56 usually indicates TLS/handshake or connection-reset issues."
+              fi
+              exit "${CURL_EXIT}"
+            fi
+          fi
+
           echo "Response code: ${HTTP_CODE}"
           cat /tmp/ns_del_response.json
           # 200=deleted, 404=already gone — both are acceptable

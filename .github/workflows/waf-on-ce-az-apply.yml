@@ -296,6 +296,13 @@ jobs:
           XC_API_BASE="${XC_API_BASE%/api}"
           XC_NAMESPACE_URL="${XC_API_BASE}/api/web/namespaces"
 
+          if [ ! -s api.p12 ]; then
+            echo "ERROR: api.p12 is missing or empty"
+            exit 1
+          fi
+
+          XC_PAYLOAD="{\"metadata\":{\"name\":\"${{ vars.XC_NAMESPACE }}\",\"namespace\":\"\"},\"spec\":{}}"
+
           CURL_EXIT=0
           HTTP_CODE=$(curl --http1.1 --silent --show-error \
             --retry 3 --retry-all-errors --retry-delay 2 \
@@ -304,15 +311,39 @@ jobs:
             -o /tmp/ns_response.json -w "%{http_code}" \
             -X POST \
             -H "Content-Type: application/json" \
-            -d "{\"metadata\":{\"name\":\"${{ vars.XC_NAMESPACE }}\",\"namespace\":\"\"},\"spec\":{}}" \
+            -d "${XC_PAYLOAD}" \
             "${XC_NAMESPACE_URL}") || CURL_EXIT=$?
 
           if [ "${CURL_EXIT}" -ne 0 ]; then
-            echo "ERROR: curl failed while creating namespace (exit ${CURL_EXIT})"
-            if [ "${CURL_EXIT}" -eq 56 ]; then
-              echo "HINT: curl exit 56 usually indicates TLS/handshake or connection-reset issues."
+            echo "WARN: curl with PKCS#12 failed (exit ${CURL_EXIT}); retrying with extracted cert/key"
+
+            openssl pkcs12 -legacy -in api.p12 -passin pass:"${{ secrets.XC_P12_PASSWORD }}" -nokeys -clcerts -out /tmp/client.crt
+            openssl pkcs12 -legacy -in api.p12 -passin pass:"${{ secrets.XC_P12_PASSWORD }}" -nocerts -nodes -out /tmp/client.key
+            if [ ! -s /tmp/client.crt ] || [ ! -s /tmp/client.key ]; then
+              echo "ERROR: Failed to extract cert/key from P12"
+              exit 1
             fi
-            exit "${CURL_EXIT}"
+
+            CURL_EXIT=0
+            HTTP_CODE=$(curl --http1.1 --silent --show-error \
+              --retry 3 --retry-all-errors --retry-delay 2 \
+              --connect-timeout 20 --max-time 120 \
+              --cert /tmp/client.crt --key /tmp/client.key \
+              -o /tmp/ns_response.json -w "%{http_code}" \
+              -X POST \
+              -H "Content-Type: application/json" \
+              -d "${XC_PAYLOAD}" \
+              "${XC_NAMESPACE_URL}") || CURL_EXIT=$?
+
+            rm -f /tmp/client.crt /tmp/client.key
+
+            if [ "${CURL_EXIT}" -ne 0 ]; then
+              echo "ERROR: curl failed while creating namespace (exit ${CURL_EXIT})"
+              if [ "${CURL_EXIT}" -eq 56 ]; then
+                echo "HINT: curl exit 56 usually indicates TLS/handshake or connection-reset issues."
+              fi
+              exit "${CURL_EXIT}"
+            fi
           fi
 
           echo "Response code: ${HTTP_CODE}"
